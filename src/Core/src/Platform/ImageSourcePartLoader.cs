@@ -55,6 +55,9 @@ namespace Microsoft.Maui.Platform
 			SourceManager.Reset();
 		}
 
+#if IOS || WINDOWS
+		private float? _scale;
+#endif
 		public async Task UpdateImageSourceAsync()
 		{
 			if (Setter.Handler is not IElementHandler handler || handler.PlatformView is not PlatformView platformView)
@@ -72,8 +75,9 @@ namespace Microsoft.Maui.Platform
 #endif
 
 #if IOS || WINDOWS
-				var scale = handler.MauiContext?.GetOptionalPlatformWindow()?.GetDisplayDensity() ?? 1.0f;
-				var result = await imageSource.UpdateSourceAsync(platformView, _imageSourceServiceProvider, Setter.SetImageSource, scale, token)
+				// Hot Path #4
+				_scale ??= handler.MauiContext?.GetOptionalPlatformWindow()?.GetDisplayDensity() ?? 1.0f;
+				var result = await imageSource.UpdateSourceAsync(platformView, _imageSourceServiceProvider, Setter.SetImageSource, _scale.Value, token)
 					.ConfigureAwait(false);
 
 				SourceManager.CompleteLoad(result);

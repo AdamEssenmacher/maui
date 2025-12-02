@@ -26,16 +26,17 @@ namespace Microsoft.Maui.Platform
 
 		public static void UpdateIsAnimationPlaying(this UIImageView imageView, IImageSourcePart image)
 		{
-			if (image.IsAnimationPlaying)
-			{
-				if (!imageView.IsAnimating)
-					imageView.StartAnimating();
-			}
-			else
-			{
-				if (imageView.IsAnimating)
-					imageView.StopAnimating();
-			}
+			// Hot Path #3 (getter for IsAnimationPlaying)
+			// if (image.IsAnimationPlaying)
+			// {
+			// 	if (!imageView.IsAnimating)
+			// 		imageView.StartAnimating();
+			// }
+			// else
+			// {
+			// 	if (imageView.IsAnimating)
+			// 		imageView.StopAnimating();
+			// }
 		}
 
 		// TODO: This method does not appear to be used, should we obsolete in net9?

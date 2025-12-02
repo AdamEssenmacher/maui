@@ -150,10 +150,14 @@ namespace Microsoft.Maui.Controls
 
 		static void ImageSourceChanged(BindableObject bindable, ImageSource newSource)
 		{
-			var imageElement = (VisualElement)bindable;
-			if (newSource != null)
-				newSource.Parent = imageElement;
-			imageElement?.InvalidateMeasureInternal(InvalidationTrigger.MeasureChanged);
+			//var imageElement = (VisualElement)bindable;
+
+			// Hot Path #5 (assigning Parent)
+			//if (newSource != null)
+			//	 newSource.Parent = imageElement;
+
+			// Hot path #1
+			//imageElement?.InvalidateMeasureInternal(InvalidationTrigger.MeasureChanged);
 		}
 
 		public static void ImageSourceSourceChanged(object sender, EventArgs e)
