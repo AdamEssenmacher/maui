@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<resources>
+	<style name="Issue32987Theme" parent="Maui.MainTheme.NoActionBar">
+		<item name="colorPrimary">#000000</item>
+		<item name="colorPrimaryDark">#2B0B98</item>
+	</style>
+</resources>

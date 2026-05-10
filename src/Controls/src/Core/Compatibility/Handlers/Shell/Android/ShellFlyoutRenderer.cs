@@ -9,6 +9,7 @@ using AndroidX.DrawerLayout.Widget;
 using Microsoft.Maui.Controls.Internals;
 using Microsoft.Maui.Controls.Platform.Compatibility;
 using Microsoft.Maui.Graphics;
+using Microsoft.Maui.Platform;
 using AView = Android.Views.View;
 using Color = Microsoft.Maui.Graphics.Color;
 using LD = Android.Views.LayoutDirection;
@@ -77,13 +78,16 @@ namespace Microsoft.Maui.Controls.Platform.Compatibility
 
 			if (DrawerLayout.StateIdle == e.NewState)
 			{
-				Shell.SetValueFromRenderer(Shell.FlyoutIsPresentedProperty, IsDrawerOpen(_flyoutContent.AndroidView));
+				var isDrawerOpen = IsDrawerOpen(_flyoutContent.AndroidView);
+				Shell.SetValueFromRenderer(Shell.FlyoutIsPresentedProperty, isDrawerOpen);
+				UpdateSystemBarAppearance(isDrawerOpen);
 			}
 		}
 
 		void OnDrawerOpened(object sender, DrawerOpenedEventArgs e)
 		{
 			Shell.SetValueFromRenderer(Shell.FlyoutIsPresentedProperty, true);
+			UpdateSystemBarAppearance(true);
 		}
 
 		void OnDrawerSlide(object sender, DrawerSlideEventArgs e)
@@ -96,6 +100,7 @@ namespace Microsoft.Maui.Controls.Platform.Compatibility
 		void OnDrawerClosed(object sender, DrawerClosedEventArgs e)
 		{
 			Shell.SetValueFromRenderer(Shell.FlyoutIsPresentedProperty, false);
+			UpdateSystemBarAppearance(false);
 		}
 
 		#endregion IDrawerListener
@@ -323,12 +328,14 @@ namespace Microsoft.Maui.Controls.Platform.Compatibility
 					_currentLockMode = LockModeLockedClosed;
 					SetDrawerLockMode(_currentLockMode);
 					_content.SetPadding(0, _content.PaddingTop, _content.PaddingRight, _content.PaddingBottom);
+					UpdateSystemBarAppearance(false);
 					break;
 
 				case FlyoutBehavior.Flyout:
 					_currentLockMode = LockModeUnlocked;
 					SetDrawerLockMode(_currentLockMode);
 					_content.SetPadding(0, _content.PaddingTop, _content.PaddingRight, _content.PaddingBottom);
+					UpdateSystemBarAppearance(Shell.FlyoutIsPresented);
 					break;
 
 				case FlyoutBehavior.Locked:
@@ -337,10 +344,31 @@ namespace Microsoft.Maui.Controls.Platform.Compatibility
 					SetDrawerLockMode(_currentLockMode);
 
 					_content.SetPadding((int)FlyoutWidth, _content.PaddingTop, _content.PaddingRight, _content.PaddingBottom);
+					UpdateSystemBarAppearance(true);
 					break;
 			}
 
 			UpdateScrim(_scrimBrush);
+		}
+
+		void UpdateSystemBarAppearance(bool flyoutPresented)
+		{
+			if (!OperatingSystem.IsAndroidVersionAtLeast(30))
+			{
+				return;
+			}
+
+			var activity = Context?.GetActivity();
+			if (activity?.Window is null)
+			{
+				return;
+			}
+
+			var statusBarBackgroundColor = flyoutPresented
+				? (_flyoutContent as ShellFlyoutTemplatedContentRenderer)?.EffectiveFlyoutBackgroundColor
+				: activity.GetDefaultStatusBarBackgroundColor();
+
+			activity.Window.ConfigureTranslucentSystemBars(activity, statusBarBackgroundColor);
 		}
 
 		double _previouslyMeasuredFlyoutWidth;

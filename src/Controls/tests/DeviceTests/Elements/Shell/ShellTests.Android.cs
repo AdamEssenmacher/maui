@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using System.Threading.Tasks;
+using Android.Graphics.Drawables;
 using Android.Views;
 using AndroidX.AppCompat.Widget;
 using AndroidX.CoordinatorLayout.Widget;
@@ -11,16 +12,19 @@ using AndroidX.RecyclerView.Widget;
 using AndroidX.ViewPager2.Widget;
 using Google.Android.Material.AppBar;
 using Google.Android.Material.BottomNavigation;
+using Google.Android.Material.Shape;
 using Microsoft.Maui.Controls;
 using Microsoft.Maui.Controls.Handlers.Compatibility;
 using Microsoft.Maui.Controls.Platform;
 using Microsoft.Maui.Controls.Platform.Compatibility;
 using Microsoft.Maui.DeviceTests.Stubs;
+using Microsoft.Maui.Graphics;
 using Microsoft.Maui.Handlers;
 using Microsoft.Maui.Platform;
 using Xunit;
 using static Microsoft.Maui.Controls.Platform.Compatibility.ShellFlyoutTemplatedContentRenderer;
 using static Microsoft.Maui.DeviceTests.AssertHelpers;
+using AContextThemeWrapper = Android.Views.ContextThemeWrapper;
 using AView = Android.Views.View;
 using ShellHandler = Microsoft.Maui.Controls.Handlers.Compatibility.ShellRenderer;
 
@@ -115,6 +119,86 @@ namespace Microsoft.Maui.DeviceTests
 				else
 					Assert.True(appBar.Elevation == 0);
 			});
+		}
+
+		[Fact(DisplayName = "Maui AppBarLayout Uses colorPrimaryDark")]
+		public Task Issue32987MauiAppBarLayoutUsesColorPrimaryDark()
+		{
+			return InvokeOnMainThreadAsync(() =>
+			{
+				var activity = MauiContext.Context.GetActivity();
+				using var themedContext = new AContextThemeWrapper(activity, Resource.Style.Issue32987Theme);
+				using var root = LayoutInflater.From(themedContext)
+				.Inflate(Controls.Resource.Layout.shellcontent, null) as CoordinatorLayout;
+
+				var appBar = root.FindViewById<AppBarLayout>(Controls.Resource.Id.shellcontent_appbar);
+
+				Assert.Equal(Color.FromArgb("#2B0B98").ToPlatform().ToArgb(), GetSolidBackgroundColor(appBar.Background));
+			});
+		}
+
+		[Fact(DisplayName = "System Bar Foreground Uses Background Luminance")]
+		public void Issue32987SystemBarForegroundUsesBackgroundLuminance()
+		{
+			var activity = MauiContext.Context.GetActivity();
+
+			Assert.False(Microsoft.Maui.WindowExtensions.ShouldUseLightSystemBarAppearance(activity, Colors.Black));
+			Assert.False(Microsoft.Maui.WindowExtensions.ShouldUseLightSystemBarAppearance(activity, Color.FromArgb("#2B0B98")));
+			Assert.True(Microsoft.Maui.WindowExtensions.ShouldUseLightSystemBarAppearance(activity, Colors.White));
+			Assert.True(Microsoft.Maui.WindowExtensions.ShouldUseLightSystemBarAppearance(activity, Color.FromArgb("#FFFF00")));
+			Assert.True(Microsoft.Maui.WindowExtensions.ShouldUseLightSystemBarAppearance(activity, Color.FromArgb("#00FF00")));
+			Assert.True(Microsoft.Maui.WindowExtensions.ShouldUseLightSystemBarAppearance(activity));
+			Assert.True(Microsoft.Maui.WindowExtensions.ShouldUseLightSystemBarAppearance(activity, Colors.Transparent));
+		}
+
+		[Fact(DisplayName = "Flyout Background Updates AppBar Status Inset")]
+		public async Task Issue32987FlyoutBackgroundUpdatesAppBarStatusInset()
+		{
+			SetupBuilder();
+
+			var flyoutBackgroundColor = Color.FromArgb("#8DECB4");
+			var shell = await CreateShellAsync(shell =>
+			{
+				shell.CurrentItem = new FlyoutItem()
+				{
+					Title = "Flyout Item",
+					Items =
+					{
+						new ContentPage()
+						{
+							Title = "Home",
+							Content = new Label { Text = "Home" }
+						}
+					}
+				};
+				shell.FlyoutBackgroundColor = flyoutBackgroundColor;
+				shell.FlyoutHeader = new Label
+				{
+					Text = "Flyout Header",
+					HeightRequest = 48
+				};
+			});
+
+			await CreateHandlerAndAddToWindow<ShellRenderer>(shell, async (handler) =>
+			{
+				await Task.Delay(100);
+				await OpenFlyout(handler);
+
+				var appBar = ((ViewGroup)GetFlyoutPlatformView(handler)).GetFirstChildOfType<AppBarLayout>();
+				var background = Assert.IsType<ColorDrawable>(appBar.Background);
+
+				Assert.Equal(flyoutBackgroundColor.ToPlatform().ToArgb(), background.Color.ToArgb());
+			});
+		}
+
+		static int GetSolidBackgroundColor(Drawable background)
+		{
+			return background switch
+			{
+				ColorDrawable colorDrawable => colorDrawable.Color.ToArgb(),
+				MaterialShapeDrawable materialShapeDrawable => materialShapeDrawable.FillColor.DefaultColor,
+				_ => throw new InvalidOperationException($"Unexpected background type '{background.GetType().FullName}'.")
+			};
 		}
 
 		protected async Task CheckFlyoutState(ShellRenderer handler, bool desiredState)

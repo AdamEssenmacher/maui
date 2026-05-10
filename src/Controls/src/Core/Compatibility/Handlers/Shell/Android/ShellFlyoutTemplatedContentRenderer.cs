@@ -17,7 +17,9 @@ using Google.Android.Material.AppBar;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Maui.Controls.Internals;
 using Microsoft.Maui.Controls.Platform.Compatibility;
+using Microsoft.Maui.Graphics;
 using Microsoft.Maui.Layouts;
+using Microsoft.Maui.Platform;
 using AView = Android.Views.View;
 using LP = Android.Views.ViewGroup.LayoutParams;
 
@@ -40,6 +42,7 @@ namespace Microsoft.Maui.Controls.Platform.Compatibility
 		Drawable _defaultBackgroundColor;
 		ImageView _bgImage;
 		AppBarLayout _appBar;
+		Color _effectiveFlyoutBackgroundColor;
 		AView _flyoutContentView;
 		ShellViewRenderer _contentView;
 		View _flyoutHeader;
@@ -54,6 +57,8 @@ namespace Microsoft.Maui.Controls.Platform.Compatibility
 		protected AView FooterView => _footerView?.PlatformView;
 		protected AView View => _rootView;
 		ShellFlyoutWindowInsetListener _shellFlyoutListener;
+
+		internal Color EffectiveFlyoutBackgroundColor => _effectiveFlyoutBackgroundColor;
 
 
 		public ShellFlyoutTemplatedContentRenderer(IShellContext shellContext)
@@ -615,7 +620,72 @@ namespace Microsoft.Maui.Controls.Platform.Compatibility
 			else
 				_rootView.UpdateBackground(brush);
 
+			UpdateFlyoutAppBarBackground();
 			UpdateFlyoutBgImageAsync();
+			UpdateSystemBarAppearance();
+		}
+
+		void UpdateFlyoutAppBarBackground()
+		{
+			_effectiveFlyoutBackgroundColor = GetEffectiveFlyoutBackgroundColor();
+
+			if (_effectiveFlyoutBackgroundColor is not null)
+			{
+				_appBar.SetBackgroundColor(_effectiveFlyoutBackgroundColor.ToPlatform());
+			}
+			else
+			{
+				_appBar.SetBackgroundColor(Colors.Transparent.ToPlatform());
+			}
+		}
+
+		Color GetEffectiveFlyoutBackgroundColor()
+		{
+			var brush = _shellContext.Shell.FlyoutBackground;
+
+			if (!Brush.IsNullOrEmpty(brush))
+			{
+				return brush is SolidColorBrush solidColorBrush &&
+					solidColorBrush.Color?.Alpha >= 1f
+						? solidColorBrush.Color
+						: null;
+			}
+
+			if (HasFlyoutBackgroundImage())
+			{
+				return null;
+			}
+
+			var flyoutBackgroundColor = _shellContext.Shell.FlyoutBackgroundColor;
+			if (flyoutBackgroundColor?.Alpha >= 1f)
+			{
+				return flyoutBackgroundColor;
+			}
+
+			return (_rootView.Background as ColorDrawable)?.Color.ToColor();
+		}
+
+		bool HasFlyoutBackgroundImage()
+		{
+			return _shellContext.Shell.FlyoutBackgroundImage is not null &&
+				_shellContext.Shell.IsSet(Shell.FlyoutBackgroundImageProperty);
+		}
+
+		void UpdateSystemBarAppearance()
+		{
+			if (!OperatingSystem.IsAndroidVersionAtLeast(30))
+			{
+				return;
+			}
+
+			if (_shellContext?.Shell?.FlyoutIsPresented != true &&
+				_shellContext?.Shell?.FlyoutBehavior != FlyoutBehavior.Locked)
+			{
+				return;
+			}
+
+			var activity = _shellContext.AndroidContext?.GetActivity();
+			activity?.Window.ConfigureTranslucentSystemBars(activity, EffectiveFlyoutBackgroundColor);
 		}
 
 		void UpdateFlyoutBgImageAsync()

@@ -146,6 +146,7 @@ namespace Microsoft.Maui.Controls.Platform.Compatibility
 			_toolbar = (AToolbar)shellToolbar.ToPlatform(shellContentMauiContext);
 
 			var appBar = _root.FindViewById<AppBarLayout>(Resource.Id.shellcontent_appbar);
+			UpdateSystemBarAppearance();
 			appBar.AddView(_toolbar);
 			_viewhandler = _page.ToHandler(shellContentMauiContext);
 
@@ -168,6 +169,22 @@ namespace Microsoft.Maui.Controls.Platform.Compatibility
 				layoutParams.Behavior = new AppBarLayout.ScrollingViewBehavior();
 
 			return _root;
+		}
+
+		void UpdateSystemBarAppearance()
+		{
+			if (!OperatingSystem.IsAndroidVersionAtLeast(30))
+			{
+				return;
+			}
+
+			var activity = Context?.GetActivity();
+			if (activity?.Window is null)
+			{
+				return;
+			}
+
+			activity.Window.ConfigureTranslucentSystemBars(activity, activity.GetDefaultStatusBarBackgroundColor());
 		}
 
 		void Destroy()

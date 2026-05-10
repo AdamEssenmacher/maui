@@ -19,7 +19,7 @@
         <item name="materialAlertDialogTheme">@style/MauiAlertDialogTheme</item>
     </style>
     <style name="MauiAppBarLayout" parent="ThemeOverlay.AppCompat.Dark.ActionBar">
-        <item name="android:background">?attr/colorPrimary</item>
+        <item name="android:background">?attr/colorPrimaryDark</item>
     </style>
     <style name="Maui.MainTheme" parent="Maui.MainTheme.Base">
       <!-- v35+ uses this to inject edge to edge opt out attribute value -->

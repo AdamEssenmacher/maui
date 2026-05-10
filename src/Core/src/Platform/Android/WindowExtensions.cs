@@ -1,10 +1,13 @@
 ﻿using Android.App;
 using Android.Content;
 using Android.Content.Res;
+using Android.Util;
 using Android.Views;
 using AndroidX.Core.View;
 using Microsoft.Maui.Devices;
+using Microsoft.Maui.Graphics;
 using Microsoft.Maui.Platform;
+using AColor = Android.Graphics.Color;
 
 namespace Microsoft.Maui
 {
@@ -43,7 +46,11 @@ namespace Microsoft.Maui
 		}
 
 		//TODO : Make it public in NET 11.
-		internal static void ConfigureTranslucentSystemBars(this Window? window, Activity activity)
+		internal static void ConfigureTranslucentSystemBars(
+			this Window? window,
+			Activity activity,
+			Color? statusBarBackgroundColor = null,
+			Color? navigationBarBackgroundColor = null)
 		{
 			if (window is null)
 			{
@@ -54,14 +61,54 @@ namespace Microsoft.Maui
 			var windowInsetsController = WindowCompat.GetInsetsController(window, window.DecorView);
 			if (windowInsetsController is not null)
 			{
-				// Automatically adjust icon/text colors based on app theme
-				var configuration = activity.Resources?.Configuration;
-				var isLightTheme = configuration is null ||
-					(configuration.UiMode & UiMode.NightMask) != UiMode.NightYes;
-
-				windowInsetsController.AppearanceLightStatusBars = isLightTheme;
-				windowInsetsController.AppearanceLightNavigationBars = isLightTheme;
+				windowInsetsController.AppearanceLightStatusBars =
+					activity.ShouldUseLightSystemBarAppearance(statusBarBackgroundColor);
+				windowInsetsController.AppearanceLightNavigationBars =
+					activity.ShouldUseLightSystemBarAppearance(navigationBarBackgroundColor);
 			}
+		}
+
+		internal static Color? GetDefaultStatusBarBackgroundColor(this Activity activity)
+		{
+			return activity.GetThemeColor(Resource.Attribute.colorPrimaryDark);
+		}
+
+		internal static bool ShouldUseLightSystemBarAppearance(this Activity activity, Color? backgroundColor = null)
+		{
+			if (backgroundColor?.Alpha >= 1f)
+			{
+				return GetPerceivedLuminance(backgroundColor) > 0.5f;
+			}
+
+			return activity.IsLightTheme();
+		}
+
+		static float GetPerceivedLuminance(Color color)
+		{
+			return 0.2126f * color.Red + 0.7152f * color.Green + 0.0722f * color.Blue;
+		}
+
+		internal static Color? GetThemeColor(this Activity activity, int attribute)
+		{
+			if (activity.Theme is null)
+			{
+				return null;
+			}
+
+			using var value = new TypedValue();
+			if (!activity.Theme.ResolveAttribute(attribute, value, true))
+			{
+				return null;
+			}
+
+			return new AColor(activity.GetThemeAttrColor(attribute)).ToColor();
+		}
+
+		static bool IsLightTheme(this Activity activity)
+		{
+			var configuration = activity.Resources?.Configuration;
+			return configuration is null ||
+				(configuration.UiMode & UiMode.NightMask) != UiMode.NightYes;
 		}
 	}
 }
