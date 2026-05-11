@@ -21,8 +21,11 @@ If the local Xcode is newer than the pinned workload expects, add:
 To capture stdout directly, build first and then run the generated executable:
 
 ```bash
-./.dotnet/dotnet build repro/mauiview-softinput-observer-leak-20260511/MauiSoftInputObserverLeakRepro.csproj -f net10.0-maccatalyst -p:ValidateXcodeVersion=false
-"artifacts/bin/MauiSoftInputObserverLeakRepro/Debug/net10.0-maccatalyst/maccatalyst-arm64/MauiSoftInputObserverLeakRepro.app/Contents/MacOS/MauiSoftInputObserverLeakRepro"
+RID=maccatalyst-x64
+if [ "$(uname -m)" = "arm64" ]; then RID=maccatalyst-arm64; fi
+
+./.dotnet/dotnet build repro/mauiview-softinput-observer-leak-20260511/MauiSoftInputObserverLeakRepro.csproj -f net10.0-maccatalyst -p:RuntimeIdentifier=$RID -p:ValidateXcodeVersion=false
+"artifacts/bin/MauiSoftInputObserverLeakRepro/Debug/net10.0-maccatalyst/$RID/MauiSoftInputObserverLeakRepro.app/Contents/MacOS/MauiSoftInputObserverLeakRepro"
 ```
 
 The app runs automatically and exits with:
