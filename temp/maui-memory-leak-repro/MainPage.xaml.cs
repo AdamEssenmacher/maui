@@ -7,11 +7,18 @@ namespace MauiMemoryLeakRepro;
 
 public partial class MainPage : ContentPage
 {
-	static readonly string[] ResultsPaths =
-	[
-		System.IO.Path.Combine(System.IO.Path.GetTempPath(), "maui-memory-leak-repro-results.txt"),
-		"/tmp/maui-memory-leak-repro-results.txt"
-	];
+	const string ResultsFileName = "maui-memory-leak-repro-results.txt";
+
+	static IEnumerable<string> ResultsPaths
+	{
+		get
+		{
+			yield return System.IO.Path.Combine(System.IO.Path.GetTempPath(), ResultsFileName);
+#if MACCATALYST
+			yield return System.IO.Path.Combine("/tmp", ResultsFileName);
+#endif
+		}
+	}
 
 	readonly VerticalStackLayout _log = new()
 	{
@@ -81,7 +88,7 @@ public partial class MainPage : ContentPage
 		_log.Children.Clear();
 		foreach (var resultsPath in ResultsPaths.Distinct())
 		{
-			File.WriteAllText(resultsPath, string.Empty);
+			TryWriteResultsFile(resultsPath, () => File.WriteAllText(resultsPath, string.Empty));
 		}
 		Write("Running probes...");
 
@@ -263,9 +270,27 @@ public partial class MainPage : ContentPage
 		Console.WriteLine(text);
 		foreach (var resultsPath in ResultsPaths.Distinct())
 		{
-			File.AppendAllText(resultsPath, text + Environment.NewLine);
+			TryWriteResultsFile(resultsPath, () => File.AppendAllText(resultsPath, text + Environment.NewLine));
 		}
 		_log.Children.Add(new Label { Text = text, FontSize = 13 });
+	}
+
+	static void TryWriteResultsFile(string resultsPath, Action write)
+	{
+		try
+		{
+			var directory = System.IO.Path.GetDirectoryName(resultsPath);
+			if (!string.IsNullOrEmpty(directory))
+			{
+				Directory.CreateDirectory(directory);
+			}
+
+			write();
+		}
+		catch (Exception ex)
+		{
+			Debug.WriteLine($"Could not write results file '{resultsPath}': {ex}");
+		}
 	}
 
 	enum ShapeKind

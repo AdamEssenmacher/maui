@@ -3,7 +3,9 @@
   <PropertyGroup>
     <TargetFrameworks>net10.0-android;net10.0-ios;net10.0-maccatalyst</TargetFrameworks>
     <OutputType>Exe</OutputType>
+    <UseMaui>true</UseMaui>
     <SingleProject>true</SingleProject>
+    <SkipValidateMauiImplicitPackageReferences>true</SkipValidateMauiImplicitPackageReferences>
     <RootNamespace>MauiMemoryLeakRepro</RootNamespace>
     <AssemblyName>MauiMemoryLeakRepro</AssemblyName>
     <ImplicitUsings>enable</ImplicitUsings>
@@ -16,12 +18,20 @@
     <ApplicationVersion>1</ApplicationVersion>
     <RuntimeIdentifier Condition="$(TargetFramework.Contains('-maccatalyst'))">maccatalyst-arm64</RuntimeIdentifier>
     <MtouchLink>None</MtouchLink>
+    <AndroidEnableMarshalMethods>false</AndroidEnableMarshalMethods>
+    <EmbedAssembliesIntoApk>true</EmbedAssembliesIntoApk>
     <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'ios'">15.0</SupportedOSPlatformVersion>
     <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'maccatalyst'">15.0</SupportedOSPlatformVersion>
     <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">21.0</SupportedOSPlatformVersion>
   </PropertyGroup>
 
   <Import Project="$(MauiSrcDirectory)MultiTargeting.targets" />
+
+  <PropertyGroup>
+    <AndroidProjectFolder>Platforms\Android\</AndroidProjectFolder>
+    <MonoAndroidResourcePrefix>$(AndroidProjectFolder)Resources</MonoAndroidResourcePrefix>
+    <MonoAndroidAssetsPrefix>$(AndroidProjectFolder)Assets</MonoAndroidAssetsPrefix>
+  </PropertyGroup>
 
   <ItemGroup Condition=" '$(_MauiTargetPlatformIsMacCatalyst)' == 'True' ">
     <Compile Remove="Platforms\iOS\**\*.cs" />
