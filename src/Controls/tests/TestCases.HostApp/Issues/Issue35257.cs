@@ -5,6 +5,12 @@ public class Issue35257 : ContentPage
 {
 	public Issue35257()
 	{
+		if (Application.Current is not null)
+		{
+			Application.Current.UserAppTheme = AppTheme.Light;
+		}
+
+		BackgroundColor = Colors.White;
 		Content = new VerticalStackLayout
 		{
 			Padding = new Thickness(30),
