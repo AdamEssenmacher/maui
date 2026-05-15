@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<Application
+	x:Class="Maui.Controls.Sample.TabbedPageBarBackgroundLeakRepro.App"
+	xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+	xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml">
+	<Application.Resources>
+		<ResourceDictionary>
+			<LinearGradientBrush
+				x:Key="SharedLeakyTabbedPageBarBackground"
+				StartPoint="0,0"
+				EndPoint="1,1">
+				<GradientStop
+					Offset="0"
+					Color="Teal" />
+				<GradientStop
+					Offset="1"
+					Color="CornflowerBlue" />
+			</LinearGradientBrush>
+
+			<LinearGradientBrush
+				x:Key="SharedControlTabbedPageBarBackground"
+				StartPoint="0,0"
+				EndPoint="1,1">
+				<GradientStop
+					Offset="0"
+					Color="DarkGreen" />
+				<GradientStop
+					Offset="1"
+					Color="SteelBlue" />
+			</LinearGradientBrush>
+
+			<Style
+				x:Key="LeakyTabbedPageStyle"
+				TargetType="TabbedPage">
+				<Setter
+					Property="BarBackground"
+					Value="{StaticResource SharedLeakyTabbedPageBarBackground}" />
+			</Style>
+
+			<Style
+				x:Key="ControlTabbedPageStyle"
+				TargetType="TabbedPage">
+				<Setter
+					Property="BarBackground"
+					Value="{StaticResource SharedControlTabbedPageBarBackground}" />
+			</Style>
+		</ResourceDictionary>
+	</Application.Resources>
+</Application>
