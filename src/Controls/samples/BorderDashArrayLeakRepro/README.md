@@ -42,7 +42,7 @@ dotnet run --project src/Controls/samples/BorderDashArrayLeakRepro/BorderDashArr
 Run the automated device proof on an installed iOS simulator app:
 
 ```bash
-xcrun simctl launch --terminate-running-process booted com.microsoft.maui.borderdasharrayleakrepro --device-proof
+SIMCTL_CHILD_BORDER_DASH_PROOF=1 xcrun simctl launch --terminate-running-process booted com.microsoft.maui.borderdasharrayleakrepro
 find "$(xcrun simctl get_app_container booted com.microsoft.maui.borderdasharrayleakrepro data)" -name border-dash-array-device-proof.txt -print -exec cat {} \;
 ```
 
