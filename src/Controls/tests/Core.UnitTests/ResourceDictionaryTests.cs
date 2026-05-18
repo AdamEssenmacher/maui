@@ -606,6 +606,51 @@ namespace Microsoft.Maui.Controls.Core.UnitTests
 		}
 
 		[Fact]
+		public void AssigningResourcesToElementDoesNotResolveLazyResources()
+		{
+			var invokeCount = 0;
+			var resources = new ResourceDictionary();
+			resources.AddFactory("unused-local-lazy-resource", () =>
+			{
+				invokeCount++;
+				return new Label();
+			}, shared: true);
+
+			Assert.Equal(0, invokeCount);
+
+			var element = new VisualElement();
+
+			element.Resources = resources;
+
+			Assert.Equal(0, invokeCount);
+		}
+
+		[Fact]
+		public void ParentSetDoesNotResolveLocalLazyResources()
+		{
+			var invokeCount = 0;
+			var child = new VisualElement();
+			child.Resources.AddFactory("unused-local-lazy-resource", () =>
+			{
+				invokeCount++;
+				return new Label();
+			}, shared: true);
+
+			Assert.Equal(0, invokeCount);
+
+			var parent = new VisualElement
+			{
+				Resources = new ResourceDictionary {
+					{ "parent-resource", "PARENT" },
+				}
+			};
+
+			child.Parent = parent;
+
+			Assert.Equal(0, invokeCount);
+		}
+
+		[Fact]
 		public void AddFactory_SharedFalse_CreatesNewInstances()
 		{
 			var rd = new ResourceDictionary();
