@@ -87,16 +87,13 @@ internal static class DeviceProofRunner
 
 			if (options.DwellMilliseconds > 0)
 				await Task.Delay(options.DwellMilliseconds);
-		}
 
-		for (var i = 0; i < options.Pages; i++)
-		{
-			statusLabel.Text = $"Popping page {i + 1}/{options.Pages}: {options.Name}";
-
+			statusLabel.Text = $"Popping page {cycle + 1}/{options.Pages}: {options.Name}";
 			await Shell.Current.GoToAsync("..", animate: false);
-			await Task.Delay(25);
+			await Task.Delay(150);
 		}
 
+		await Task.Delay(1000);
 		var finalSnapshot = await MemorySampler.TakeAfterCollectionAsync();
 		return session.GetStats(baseline, finalSnapshot);
 	}

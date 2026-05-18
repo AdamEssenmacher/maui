@@ -19,6 +19,10 @@ internal static class MemorySampler
 			GC.Collect();
 			GC.WaitForPendingFinalizers();
 			GC.Collect(2, GCCollectionMode.Forced, blocking: true, compacting: true);
+#if ANDROID
+			Java.Lang.JavaSystem.Gc();
+			Java.Lang.Runtime.GetRuntime()?.Gc();
+#endif
 			await Task.Delay(25);
 		}
 	}
