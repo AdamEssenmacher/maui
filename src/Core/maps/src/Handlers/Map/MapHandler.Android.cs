@@ -64,9 +64,6 @@ namespace Microsoft.Maui.Maps.Handlers
 
 			if (map != null)
 			{
-				map.MyLocationEnabled = false;
-				map.TrafficEnabled = false;
-				map.Clear();
 				map.SetOnCameraMoveListener(null);
 				map.MarkerClick -= OnMarkerClick;
 				map.InfoWindowClick -= OnInfoWindowClick;
@@ -94,8 +91,6 @@ namespace Microsoft.Maui.Maps.Handlers
 			platformView.OnPause();
 			platformView.OnStop();
 			platformView.OnDestroy();
-			map?.Dispose();
-			platformView.Dispose();
 		}
 
 		protected override MapView CreatePlatformView()
