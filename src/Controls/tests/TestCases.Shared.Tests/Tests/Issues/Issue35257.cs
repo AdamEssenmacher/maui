@@ -13,17 +13,6 @@ public class Issue35257 : _IssuesUITest
 	{
 	}
 
-	public override IConfig GetTestConfig()
-	{
-		var config = base.GetTestConfig();
-		config.SetTestConfigurationArg("test", Issue);
-		return config;
-	}
-
-	protected override void TryToResetTestState()
-	{
-	}
-
 	[Test]
 	[Category(UITestCategories.Switch)]
 	public void SwitchCustomColorsRenderOnInitialState()
