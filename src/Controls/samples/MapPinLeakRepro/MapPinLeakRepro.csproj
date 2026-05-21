@@ -1,0 +1,41 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net$(_MauiDotNetVersion)-android</TargetFrameworks>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>MapPinLeakRepro</RootNamespace>
+    <SingleProject>true</SingleProject>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+    <NoWarn>$(NoWarn);XC0022</NoWarn>
+    <ApplicationTitle>MapPinLeakRepro</ApplicationTitle>
+    <ApplicationId>com.microsoft.maui.mappinleakrepro</ApplicationId>
+    <ApplicationDisplayVersion>1.0</ApplicationDisplayVersion>
+    <ApplicationVersion>1</ApplicationVersion>
+    <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">23.0</SupportedOSPlatformVersion>
+  </PropertyGroup>
+
+  <PropertyGroup Condition=" '$(MapPinLeakReproAutoRun)' == 'true' ">
+    <DefineConstants>$(DefineConstants);MAP_PIN_LEAK_REPRO_AUTORUN</DefineConstants>
+  </PropertyGroup>
+
+  <ItemGroup Condition=" '$(UseMaui)' != 'true' ">
+    <ProjectReference Include="..\..\..\Core\src\Core.csproj" />
+    <ProjectReference Include="..\..\..\Controls\src\Xaml\Controls.Xaml.csproj" />
+    <ProjectReference Include="..\..\..\Controls\src\Core\Controls.Core.csproj" />
+    <ProjectReference Include="..\..\..\Controls\Maps\src\Controls.Maps.csproj" />
+  </ItemGroup>
+
+  <ItemGroup Condition=" '$(UseMaui)' == 'true' ">
+    <PackageReference Include="Microsoft.Maui.Controls.Maps" Version="$(MauiVersion)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <MauiIcon Include="Resources\AppIcons\appicon.svg" ForegroundFile="Resources\AppIcons\appiconfg.svg" Color="#194D7A" />
+    <MauiSplashScreen Include="Resources\Splash\splash.svg" Color="#194D7A" BaseSize="128,128" />
+  </ItemGroup>
+
+  <Import Project="$(MauiSrcDirectory)Maui.InTree.props" Condition=" '$(UseMaui)' != 'true' " />
+
+</Project>
