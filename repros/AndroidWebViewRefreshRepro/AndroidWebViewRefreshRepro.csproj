@@ -1,0 +1,48 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net10.0-android</TargetFrameworks>
+    <OutputType>Exe</OutputType>
+    <SingleProject>true</SingleProject>
+    <RootNamespace>AndroidWebViewRefreshRepro</RootNamespace>
+    <AssemblyName>AndroidWebViewRefreshRepro</AssemblyName>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <NoWarn>$(NoWarn);CA1416</NoWarn>
+    <ApplicationTitle>Android WebView Refresh Repro</ApplicationTitle>
+    <ApplicationId>com.microsoft.maui.repros.androidwebviewrefresh</ApplicationId>
+    <ApplicationDisplayVersion>1.0</ApplicationDisplayVersion>
+    <ApplicationVersion>1</ApplicationVersion>
+    <_FastDeploymentDiagnosticLogging>True</_FastDeploymentDiagnosticLogging>
+  </PropertyGroup>
+
+  <ItemGroup Condition=" '$(UseMaui)' != 'true' ">
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
+    <PackageReference Include="Microsoft.Extensions.Logging" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Logging.Debug" />
+  </ItemGroup>
+
+  <ItemGroup Condition=" '$(UseMaui)' != 'true' ">
+    <ProjectReference Include="..\..\src\Essentials\src\Essentials.csproj" />
+    <ProjectReference Include="..\..\src\Controls\src\Core\Controls.Core.csproj" />
+    <ProjectReference Include="..\..\src\Controls\src\Xaml\Controls.Xaml.csproj" />
+    <ProjectReference Include="..\..\src\Core\src\Core.csproj" />
+    <ProjectReference Include="..\..\src\Graphics\src\Graphics\Graphics.csproj" />
+  </ItemGroup>
+
+  <ItemGroup Condition=" '$(UseMaui)' == 'true' ">
+    <PackageReference Include="Microsoft.Maui.Controls" Version="$(MauiVersion)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <MauiIcon Include="Resources\AppIcon\appicon.svg" ForegroundFile="Resources\AppIcon\appiconfg.svg" Color="#2F6FED" />
+    <MauiSplashScreen Include="Resources\Splash\splash.svg" Color="#2F6FED" BaseSize="128,128" />
+  </ItemGroup>
+
+  <Import Project="$(MauiSrcDirectory)Maui.InTree.props" Condition=" '$(UseMaui)' != 'true' " />
+
+</Project>
