@@ -9,6 +9,11 @@
 	internal interface ISafeAreaView2
 	{
 		/// <summary>
+		/// Gets whether the view has an explicitly configured SafeAreaEdges value.
+		/// </summary>
+		bool HasExplicitSafeAreaEdges { get; }
+
+		/// <summary>
 		/// Internal property for the Page's SafeAreaInsets Thickness that may be changed in the future.
 		/// </summary>
 		internal Thickness SafeAreaInsets { set; }

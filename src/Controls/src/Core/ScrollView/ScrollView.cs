@@ -576,6 +576,9 @@ namespace Microsoft.Maui.Controls
 			return regionForEdge;
 		}
 
+		/// <inheritdoc cref="ISafeAreaView2.HasExplicitSafeAreaEdges"/>
+		bool ISafeAreaView2.HasExplicitSafeAreaEdges => IsSetExplicitly(SafeAreaEdgesProperty);
+
 		private protected override string GetDebuggerDisplay()
 		{
 			var debugText = DebuggerDisplayHelpers.GetDebugText(nameof(Content), Content);
