@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Working HybridWebView Invoke</title>
+	<script src="_framework/hybridwebview.js"></script>
+	<script>
+		function ReturnDemoValue(value) {
+			return `working:${value}:${document.readyState}`;
+		}
+	</script>
+	<style>
+		body {
+			font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+			margin: 24px;
+			color: #0f172a;
+			background: #ffffff;
+		}
+
+		code {
+			background: #e2e8f0;
+			border-radius: 4px;
+			padding: 2px 5px;
+		}
+	</style>
+</head>
+<body>
+	<h1>Working page</h1>
+	<p>This page loads <code>_framework/hybridwebview.js</code>, so public invoke requests can callback into .NET.</p>
+</body>
+</html>

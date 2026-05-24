@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage
+	x:Class="Maui.Controls.HybridWebViewRepro.MainPage"
+	xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+	xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+	BackgroundColor="{StaticResource PageBackgroundColor}"
+	Title="HybridWebView InvokeJavaScriptAsync Repro">
+
+	<ScrollView>
+		<VerticalStackLayout
+			Padding="16"
+			Spacing="12">
+
+			<VerticalStackLayout Spacing="4">
+				<Label
+					FontAttributes="Bold"
+					FontSize="22"
+					Text="HybridWebView InvokeJavaScriptAsync Hang Repro"
+					TextColor="{StaticResource PanelHeaderColor}" />
+				<Label
+					FontSize="14"
+					Text="The working view loads hybridwebview.js. The broken view omits it so InvokeJavaScriptAsync remains pending after the platform script evaluation fails."
+					TextColor="{StaticResource SecondaryTextColor}" />
+			</VerticalStackLayout>
+
+			<FlexLayout
+				AlignItems="Start"
+				Direction="Row"
+				Wrap="Wrap">
+				<Button
+					Margin="0,0,8,8"
+					Clicked="OnRunWorkingInvokeClicked"
+					Text="Run working invoke" />
+				<Button
+					Margin="0,0,8,8"
+					Clicked="OnRunHangingInvokeClicked"
+					Text="Run hanging invoke" />
+				<Button
+					Margin="0,0,8,8"
+					Clicked="OnRefreshRetainedCountClicked"
+					Text="Refresh retained count" />
+			</FlexLayout>
+
+			<Border
+				Padding="12"
+				Stroke="{StaticResource PanelBorderColor}"
+				StrokeShape="RoundRectangle 6">
+				<VerticalStackLayout Spacing="6">
+					<Label
+						FontAttributes="Bold"
+						Text="Working page"
+						TextColor="{StaticResource PanelHeaderColor}" />
+					<Label
+						x:Name="WorkingStatusLabel"
+						Text="Ready."
+						TextColor="{StaticResource SecondaryTextColor}" />
+				</VerticalStackLayout>
+			</Border>
+
+			<Border
+				Padding="12"
+				Stroke="{StaticResource PanelBorderColor}"
+				StrokeShape="RoundRectangle 6">
+				<VerticalStackLayout Spacing="6">
+					<Label
+						FontAttributes="Bold"
+						Text="Broken page"
+						TextColor="{StaticResource PanelHeaderColor}" />
+					<Label
+						x:Name="HangingStatusLabel"
+						Text="Ready."
+						TextColor="{StaticResource SecondaryTextColor}" />
+					<Label
+						x:Name="RetainedCountLabel"
+						Text="Retained callbacks: not checked"
+						TextColor="{StaticResource SecondaryTextColor}" />
+					<Label
+						x:Name="PendingCountLabel"
+						Text="Pending repro tasks: 0"
+						TextColor="{StaticResource SecondaryTextColor}" />
+				</VerticalStackLayout>
+			</Border>
+
+			<Label
+				FontAttributes="Bold"
+				Text="Working HybridWebView"
+				TextColor="{StaticResource PanelHeaderColor}" />
+			<Border
+				HeightRequest="300"
+				Stroke="{StaticResource PanelBorderColor}"
+				StrokeShape="RoundRectangle 6">
+				<HybridWebView
+					x:Name="WorkingHybridWebView"
+					DefaultFile="working.html"
+					HybridRoot="HybridHang" />
+			</Border>
+
+			<Label
+				FontAttributes="Bold"
+				Text="Broken HybridWebView"
+				TextColor="{StaticResource PanelHeaderColor}" />
+			<Border
+				HeightRequest="300"
+				Stroke="{StaticResource PanelBorderColor}"
+				StrokeShape="RoundRectangle 6">
+				<HybridWebView
+					x:Name="HangingHybridWebView"
+					DefaultFile="broken.html"
+					HybridRoot="HybridHang" />
+			</Border>
+		</VerticalStackLayout>
+	</ScrollView>
+</ContentPage>

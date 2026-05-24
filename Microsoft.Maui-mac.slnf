@@ -15,6 +15,7 @@
       "src\\Controls\\Maps\\src\\Controls.Maps.csproj",
       "src\\Controls\\samples\\Controls.Sample.Profiling\\Maui.Controls.Sample.Profiling.csproj",
       "src\\Controls\\samples\\Controls.Sample.Sandbox\\Maui.Controls.Sample.Sandbox.csproj",
+      "src\\Controls\\samples\\HybridWebViewRepro\\Maui.Controls.HybridWebViewRepro.csproj",
       "src\\Controls\\samples\\Controls.Sample\\Maui.Controls.Sample.csproj",
       "src\\Controls\\samples\\Controls.Sample.Embedding\\Maui.Controls.Sample.Embedding.csproj",
       "src\\Controls\\tests\\TestCases.HostApp\\Controls.TestCases.HostApp.csproj",

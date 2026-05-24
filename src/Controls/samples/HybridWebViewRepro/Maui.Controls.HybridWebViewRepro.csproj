@@ -1,0 +1,45 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<TargetFrameworks>$(MauiSamplePlatforms)</TargetFrameworks>
+		<TargetFrameworks Condition=" '$(UseMaui)' != 'true' and '$(IncludePreviousTfms)' == 'true' ">$(TargetFrameworks);$(MauiSamplePreviousPlatforms)</TargetFrameworks>
+		<OutputType>Exe</OutputType>
+		<SingleProject>true</SingleProject>
+		<Nullable>enable</Nullable>
+		<IsPackable>false</IsPackable>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<NoWarn>$(NoWarn);XC0022</NoWarn>
+		<RuntimeIdentifier Condition="$(TargetFramework.Contains('-maccatalyst'))">maccatalyst-x64</RuntimeIdentifier>
+		<RuntimeIdentifier Condition="$(TargetFramework.Contains('-maccatalyst')) and '$([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture)' == 'arm64'">maccatalyst-arm64</RuntimeIdentifier>
+		<UseMaterial3>false</UseMaterial3>
+	</PropertyGroup>
+
+	<PropertyGroup>
+		<ApplicationTitle>HybridWebView Repro</ApplicationTitle>
+		<!-- Workaround: https://github.com/dotnet/maui/issues/18638 -->
+		<ApplicationTitle Condition="$(TargetFramework.Contains('-maccatalyst'))">Maui.Controls.HybridWebViewRepro</ApplicationTitle>
+		<ApplicationId>com.microsoft.maui.hybridwebviewrepro</ApplicationId>
+		<ApplicationDisplayVersion>1.0</ApplicationDisplayVersion>
+		<ApplicationVersion>1</ApplicationVersion>
+		<_FastDeploymentDiagnosticLogging>True</_FastDeploymentDiagnosticLogging>
+	</PropertyGroup>
+
+	<ItemGroup Condition=" '$(UseMaui)' != 'true' ">
+		<PackageReference Include="Microsoft.Extensions.DependencyInjection" />
+	</ItemGroup>
+
+	<ItemGroup Condition=" '$(UseMaui)' != 'true' ">
+		<ProjectReference Include="..\..\..\Core\src\Core.csproj" />
+		<ProjectReference Include="..\..\..\Controls\src\Xaml\Controls.Xaml.csproj" />
+		<ProjectReference Include="..\..\..\Controls\src\Core\Controls.Core.csproj" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<MauiIcon Include="Resources\AppIcons\appicon.svg" ForegroundFile="Resources\AppIcons\appicon_foreground.svg" IsAppIcon="true" />
+		<MauiSplashScreen Include="Resources\Splash\splash.svg" Color="#1F2937" BaseSize="128,128" />
+		<MauiAsset Include="Resources\Raw\**" LogicalName="%(RecursiveDir)%(Filename)%(Extension)" />
+	</ItemGroup>
+
+	<Import Project="$(MauiSrcDirectory)Maui.InTree.props" Condition=" '$(UseMaui)' != 'true' " />
+
+</Project>
