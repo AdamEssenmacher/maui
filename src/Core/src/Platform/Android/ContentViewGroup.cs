@@ -23,6 +23,8 @@ namespace Microsoft.Maui.Platform
 		public override bool HasOverlappingRendering => Alpha >= 1.0f && base.HasOverlappingRendering;
 
 		IBorderStroke? _clip;
+		bool _usingBackgroundOutlineClip;
+		bool _previousClipToOutline;
 		readonly Context _context;
 		bool _didSafeAreaEdgeConfigurationChange = true;
 		bool _isInsetListenerSet;
@@ -183,10 +185,37 @@ namespace Microsoft.Maui.Platform
 			get => _clip;
 			set
 			{
+				if (ReferenceEquals(_clip, value))
+					return;
+
 				_clip = value;
 				// NOTE: calls PostInvalidate()
 				SetHasClip(_clip is not null);
 			}
+		}
+
+		internal void SetBackgroundOutlineClip()
+		{
+			if (!_usingBackgroundOutlineClip)
+			{
+				_previousClipToOutline = ClipToOutline;
+				_usingBackgroundOutlineClip = true;
+			}
+
+			ClipToOutline = true;
+			Clip = null;
+			InvalidateOutline();
+		}
+
+		internal void ClearBackgroundOutlineClip()
+		{
+			if (!_usingBackgroundOutlineClip)
+				return;
+
+			ClipToOutline = _previousClipToOutline;
+			_usingBackgroundOutlineClip = false;
+			_previousClipToOutline = false;
+			InvalidateOutline();
 		}
 
 		protected override Path? GetClipPath(int width, int height)

@@ -9,6 +9,9 @@ namespace Microsoft.Maui.Platform
 		{
 			// Always set the drawable first
 			MauiDrawable? mauiDrawable = null;
+			if (platformView.UpdateRoundRectangleSolidDrawable(border))
+				return;
+
 			platformView.UpdateMauiDrawable(border, ref mauiDrawable);
 
 			if (mauiDrawable is null)
@@ -31,7 +34,13 @@ namespace Microsoft.Maui.Platform
 			MauiDrawable? mauiDrawable = platformView.Background as MauiDrawable;
 
 			if (mauiDrawable == null && borderShape == null)
+			{
+				platformView.ClearRoundRectangleSolidDrawable();
+				if (platformView is ContentViewGroup contentViewGroup)
+					contentViewGroup.ClearBackgroundOutlineClip();
+
 				return;
+			}
 
 			platformView.UpdateMauiDrawable(border, ref mauiDrawable);
 			// Make sure to invalidate the wrapper view so that the eventual shadow is redrawn
@@ -143,6 +152,12 @@ namespace Microsoft.Maui.Platform
 			mauiDrawable ??= platformView.Background as MauiDrawable;
 			if (mauiDrawable is null)
 			{
+				if (platformView.Background is MauiRoundRectangleSolidDrawable roundRectangleSolidDrawable)
+				{
+					platformView.Background = null;
+					roundRectangleSolidDrawable.Dispose();
+				}
+
 				mauiDrawable = new MauiDrawable(platformView.Context);
 
 				platformView.Background = mauiDrawable;
@@ -156,7 +171,81 @@ namespace Microsoft.Maui.Platform
 			mauiDrawable.SetBorderShape(border.Shape);
 
 			if (platformView is ContentViewGroup contentViewGroup)
+			{
+				contentViewGroup.ClearBackgroundOutlineClip();
 				contentViewGroup.Clip = border;
+			}
 		}
+
+		static bool UpdateRoundRectangleSolidDrawable(this AView platformView, IBorderStroke border)
+		{
+			if (border is not IView view)
+				return false;
+
+			if (view.Shadow is not null)
+				return false;
+
+			if (border.Shape is not IRoundRectangle roundRectangle)
+				return false;
+
+			if (!border.Stroke.IsNullOrEmpty() && border.StrokeThickness > 0)
+				return false;
+
+			if (platformView is ContentViewGroup contentViewGroup)
+			{
+				if (roundRectangle.CornerRadius.IsUniform())
+				{
+					contentViewGroup.SetBackgroundOutlineClip();
+				}
+				else
+				{
+					contentViewGroup.ClearBackgroundOutlineClip();
+					contentViewGroup.Clip = border;
+				}
+			}
+
+			if (view.Background.IsNullOrEmpty())
+			{
+				platformView.ClearRoundRectangleSolidDrawable();
+				return true;
+			}
+
+			if (view.Background is not SolidPaint solidPaint || solidPaint.Color is null)
+				return false;
+
+			if (platformView.Background is MauiDrawable mauiDrawable)
+			{
+				platformView.Background = null;
+				mauiDrawable.Dispose();
+			}
+
+			if (platformView.Background is not MauiRoundRectangleSolidDrawable drawable)
+			{
+				drawable = new MauiRoundRectangleSolidDrawable();
+				platformView.Background = drawable;
+			}
+
+			drawable.Update(solidPaint.Color.ToPlatform(), roundRectangle.CornerRadius, platformView.Context.GetDisplayDensity());
+			return true;
+		}
+
+		static void ClearRoundRectangleSolidDrawable(this AView platformView)
+		{
+			if (platformView.Background is MauiDrawable mauiDrawable)
+			{
+				platformView.Background = null;
+				mauiDrawable.Dispose();
+			}
+			else if (platformView.Background is MauiRoundRectangleSolidDrawable drawable)
+			{
+				platformView.Background = null;
+				drawable.Dispose();
+			}
+		}
+
+		static bool IsUniform(this CornerRadius cornerRadius) =>
+			cornerRadius.TopLeft == cornerRadius.TopRight &&
+			cornerRadius.TopLeft == cornerRadius.BottomLeft &&
+			cornerRadius.TopLeft == cornerRadius.BottomRight;
 	}
 }

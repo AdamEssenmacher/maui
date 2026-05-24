@@ -11,6 +11,7 @@
 
 	internal interface IRoundRectangle : IShape
 	{
+		CornerRadius CornerRadius { get; }
 		PathF InnerPathForBounds(Rect bounds, float strokeThickness);
 		PathF InnerPath();
 	}
