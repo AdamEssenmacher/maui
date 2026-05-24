@@ -145,7 +145,7 @@ namespace Microsoft.Maui.Controls.Handlers.Items
 			if (template != null)
 			{
 				var footerContentView = new ItemContentView(context);
-				return new TemplatedItemViewHolder(footerContentView, template, isSelectionEnabled: false);
+				return TrackTemplatedViewHolder(new TemplatedItemViewHolder(footerContentView, template, isSelectionEnabled: false));
 			}
 
 			if (content is View formsView)

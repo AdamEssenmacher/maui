@@ -82,6 +82,7 @@ namespace Microsoft.Maui.Controls.Handlers.Items
 				// Unhook whichever adapter is active
 				SetAdapter(null);
 
+				_emptyViewAdapter?.DisconnectTemplatedViewHolders();
 				_emptyViewAdapter?.Dispose();
 				ItemsViewAdapter?.Dispose();
 			}

@@ -1,5 +1,6 @@
 ﻿#nullable disable
 using System;
+using System.Collections.Generic;
 using Android.Content;
 using Android.Views;
 using AndroidX.RecyclerView.Widget;
@@ -14,6 +15,7 @@ namespace Microsoft.Maui.Controls.Handlers.Items
 		int _headerViewType;
 		object _headerView;
 		DataTemplate _headerViewTemplate;
+		readonly List<WeakReference<TemplatedItemViewHolder>> _templatedViewHolders = new();
 
 		double _footerHeight;
 		int _footerViewType;
@@ -209,7 +211,7 @@ namespace Microsoft.Maui.Controls.Handlers.Items
 			if (template != null)
 			{
 				var itemContentView = new ItemContentView(context);
-				return new TemplatedItemViewHolder(itemContentView, template, isSelectionEnabled: false);
+				return TrackTemplatedViewHolder(new TemplatedItemViewHolder(itemContentView, template, isSelectionEnabled: false));
 			}
 
 			if (content is View formsView)
@@ -243,7 +245,7 @@ namespace Microsoft.Maui.Controls.Handlers.Items
 			}
 
 			var itemContentView = new SizedItemContentView(parent.Context, () => GetWidth(parent), () => GetHeight(parent));
-			return new TemplatedItemViewHolder(itemContentView, template, isSelectionEnabled: false);
+			return TrackTemplatedViewHolder(new TemplatedItemViewHolder(itemContentView, template, isSelectionEnabled: false));
 		}
 
 		protected void BindTemplatedItemViewHolder(TemplatedItemViewHolder templatedItemViewHolder, object context)
@@ -365,6 +367,33 @@ namespace Microsoft.Maui.Controls.Handlers.Items
 			}
 			// Default
 			return true;
+		}
+
+		TemplatedItemViewHolder TrackTemplatedViewHolder(TemplatedItemViewHolder holder)
+		{
+			for (int index = _templatedViewHolders.Count - 1; index >= 0; index--)
+			{
+				if (!_templatedViewHolders[index].TryGetTarget(out _))
+				{
+					_templatedViewHolders.RemoveAt(index);
+				}
+			}
+
+			_templatedViewHolders.Add(new WeakReference<TemplatedItemViewHolder>(holder));
+			return holder;
+		}
+
+		internal void DisconnectTemplatedViewHolders()
+		{
+			for (int index = _templatedViewHolders.Count - 1; index >= 0; index--)
+			{
+				if (_templatedViewHolders[index].TryGetTarget(out var holder))
+				{
+					holder.DisconnectAndRecycle(ItemsView);
+				}
+			}
+
+			_templatedViewHolders.Clear();
 		}
 	}
 }

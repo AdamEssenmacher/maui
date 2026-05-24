@@ -42,13 +42,13 @@ namespace Microsoft.Maui.Controls.Handlers.Items
 			if (viewType == ItemViewType.GroupHeader)
 			{
 				var itemContentView = new ItemContentView(context);
-				return new TemplatedItemViewHolder(itemContentView, ItemsView.GroupHeaderTemplate, isSelectionEnabled: false);
+				return TrackTemplatedViewHolder(new TemplatedItemViewHolder(itemContentView, ItemsView.GroupHeaderTemplate, isSelectionEnabled: false));
 			}
 
 			if (viewType == ItemViewType.GroupFooter)
 			{
 				var itemContentView = new ItemContentView(context);
-				return new TemplatedItemViewHolder(itemContentView, ItemsView.GroupFooterTemplate, isSelectionEnabled: false);
+				return TrackTemplatedViewHolder(new TemplatedItemViewHolder(itemContentView, ItemsView.GroupFooterTemplate, isSelectionEnabled: false));
 			}
 
 			return base.OnCreateViewHolder(parent, viewType);
