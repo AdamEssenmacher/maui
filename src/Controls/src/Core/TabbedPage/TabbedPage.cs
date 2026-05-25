@@ -80,6 +80,13 @@ namespace Microsoft.Maui.Controls
 			return _platformConfigurationRegistry.Value.On<T>();
 		}
 
+		protected override Size ArrangeOverride(Rect bounds)
+		{
+			Frame = bounds;
+			Handler?.PlatformArrange(bounds);
+			return bounds.Size;
+		}
+
 		[Obsolete("Use ArrangeOverride instead")]
 		protected override void LayoutChildren(double x, double y, double width, double height)
 		{
