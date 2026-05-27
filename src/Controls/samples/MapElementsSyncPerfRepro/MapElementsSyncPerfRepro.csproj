@@ -1,0 +1,46 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net$(_MauiDotNetVersion)-android;net$(_MauiDotNetVersion)-ios</TargetFrameworks>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>MapElementsSyncPerfRepro</RootNamespace>
+    <SingleProject>true</SingleProject>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+    <NoWarn>$(NoWarn);XC0022</NoWarn>
+    <ApplicationTitle>MapElementsSyncPerfRepro</ApplicationTitle>
+    <ApplicationId>com.microsoft.maui.mapelementssyncperfrepro</ApplicationId>
+    <ApplicationDisplayVersion>1.0</ApplicationDisplayVersion>
+    <ApplicationVersion>1</ApplicationVersion>
+    <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">23.0</SupportedOSPlatformVersion>
+    <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'ios'">15.0</SupportedOSPlatformVersion>
+    <_ExistingAndroidManifestPlaceholders>$(AndroidManifestPlaceholders)</_ExistingAndroidManifestPlaceholders>
+    <AndroidManifestPlaceholders Condition=" '$(_ExistingAndroidManifestPlaceholders)' == '' and '$(GoogleMapsApiKey)' != '' ">MAPS_API_KEY=$(GoogleMapsApiKey)</AndroidManifestPlaceholders>
+    <AndroidManifestPlaceholders Condition=" '$(_ExistingAndroidManifestPlaceholders)' != '' and '$(GoogleMapsApiKey)' != '' ">$(_ExistingAndroidManifestPlaceholders);MAPS_API_KEY=$(GoogleMapsApiKey)</AndroidManifestPlaceholders>
+  </PropertyGroup>
+
+  <PropertyGroup Condition=" '$(MapElementsSyncPerfReproAutoRun)' == 'true' ">
+    <DefineConstants>$(DefineConstants);MAP_ELEMENTS_SYNC_PERF_REPRO_AUTORUN</DefineConstants>
+  </PropertyGroup>
+
+  <ItemGroup Condition=" '$(UseMaui)' != 'true' ">
+    <ProjectReference Include="..\..\..\Essentials\src\Essentials.csproj" />
+    <ProjectReference Include="..\..\..\Core\src\Core.csproj" />
+    <ProjectReference Include="..\..\..\Controls\src\Xaml\Controls.Xaml.csproj" />
+    <ProjectReference Include="..\..\..\Controls\src\Core\Controls.Core.csproj" />
+    <ProjectReference Include="..\..\..\Controls\Maps\src\Controls.Maps.csproj" />
+  </ItemGroup>
+
+  <ItemGroup Condition=" '$(UseMaui)' == 'true' ">
+    <PackageReference Include="Microsoft.Maui.Controls.Maps" Version="$(MauiVersion)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <MauiIcon Include="Resources\AppIcons\appicon.svg" ForegroundFile="Resources\AppIcons\appiconfg.svg" Color="#245B4E" />
+    <MauiSplashScreen Include="Resources\Splash\splash.svg" Color="#245B4E" BaseSize="128,128" />
+  </ItemGroup>
+
+  <Import Project="$(MauiSrcDirectory)Maui.InTree.props" Condition=" '$(UseMaui)' != 'true' " />
+
+</Project>
