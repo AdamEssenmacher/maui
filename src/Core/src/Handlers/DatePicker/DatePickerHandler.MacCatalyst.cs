@@ -205,6 +205,10 @@ namespace Microsoft.Maui.Handlers
 		class UIDatePickerProxy
 		{
 			WeakReference<DatePickerHandler>? _handler;
+			NSObject? _textFieldEditingBeganObserver;
+			NSObject? _textFieldEditingEndedObserver;
+			string? _textFieldTextOnEditingBegan;
+			DateTime? _dateOnTextFieldEditingBegan;
 
 			public void Connect(DatePickerHandler handler, IDatePicker virtualView, UIDatePicker platformView)
 			{
@@ -213,6 +217,12 @@ namespace Microsoft.Maui.Handlers
 				platformView.EditingDidBegin += OnStarted;
 				platformView.EditingDidEnd += OnEnded;
 				platformView.ValueChanged += OnValueChanged;
+				_textFieldEditingBeganObserver = NSNotificationCenter.DefaultCenter.AddObserver(
+					UITextField.TextDidBeginEditingNotification,
+					OnTextFieldEditingBegan);
+				_textFieldEditingEndedObserver = NSNotificationCenter.DefaultCenter.AddObserver(
+					UITextField.TextDidEndEditingNotification,
+					OnTextFieldEditingEnded);
 			}
 
 			public void Disconnect(UIDatePicker platformView)
@@ -220,6 +230,18 @@ namespace Microsoft.Maui.Handlers
 				platformView.EditingDidBegin -= OnStarted;
 				platformView.EditingDidEnd -= OnEnded;
 				platformView.ValueChanged -= OnValueChanged;
+
+				if (_textFieldEditingEndedObserver is not null)
+				{
+					NSNotificationCenter.DefaultCenter.RemoveObserver(_textFieldEditingEndedObserver);
+					_textFieldEditingEndedObserver = null;
+				}
+
+				if (_textFieldEditingBeganObserver is not null)
+				{
+					NSNotificationCenter.DefaultCenter.RemoveObserver(_textFieldEditingBeganObserver);
+					_textFieldEditingBeganObserver = null;
+				}
 			}
 
 			void OnValueChanged(object? sender, EventArgs? e)
@@ -243,6 +265,50 @@ namespace Microsoft.Maui.Handlers
 			{
 				if (_handler is not null && _handler.TryGetTarget(out var handler))
 					handler.SetVirtualOpenStateFromNative(false);
+			}
+
+			void OnTextFieldEditingBegan(NSNotification notification)
+			{
+				if (_handler is null ||
+					!_handler.TryGetTarget(out var handler) ||
+					notification.Object is not UITextField textField ||
+					!textField.IsDescendantOfView(handler.PlatformView))
+				{
+					return;
+				}
+
+				_textFieldTextOnEditingBegan = textField.Text;
+				_dateOnTextFieldEditingBegan = handler.VirtualView?.Date ?? handler.PlatformView.Date.ToDateTime();
+				handler.SetVirtualOpenStateFromNative(true);
+			}
+
+			void OnTextFieldEditingEnded(NSNotification notification)
+			{
+				if (_handler is null ||
+					!_handler.TryGetTarget(out var handler) ||
+					notification.Object is not UITextField textField ||
+					!textField.IsDescendantOfView(handler.PlatformView))
+				{
+					return;
+				}
+
+				if (_dateOnTextFieldEditingBegan is DateTime dateOnEditingBegan &&
+					_textFieldTextOnEditingBegan is not null &&
+					string.Equals(textField.Text, _textFieldTextOnEditingBegan, StringComparison.Ordinal) &&
+					handler.PlatformView.Date.ToDateTime().Date != dateOnEditingBegan.Date)
+				{
+					handler.PlatformView.Date = dateOnEditingBegan.ToNSDate();
+				}
+
+				handler.SetVirtualViewDate();
+				handler.SetVirtualOpenStateFromNative(false);
+				ClearTextFieldEditingState();
+			}
+
+			void ClearTextFieldEditingState()
+			{
+				_textFieldTextOnEditingBegan = null;
+				_dateOnTextFieldEditingBegan = null;
 			}
 		}
 	}

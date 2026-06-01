@@ -180,6 +180,48 @@ namespace Microsoft.Maui.DeviceTests
 			}
 		}
 
+		[Fact(DisplayName = "Native Text Field Cancel Restores Date")]
+		public async Task NativeTextFieldCancelRestoresDate()
+		{
+			var originalDate = new DateTime(2026, 5, 20);
+			var changedDate = new DateTime(2026, 5, 21);
+			var datePicker = new DatePickerStub
+			{
+				Date = originalDate,
+				Width = 200,
+				Height = 44
+			};
+
+			await AttachAndRun<DatePickerHandler>(datePicker, async handler =>
+			{
+				var textField = new UITextField { Text = "20" };
+				handler.PlatformView.AddSubview(textField);
+
+				NSNotificationCenter.DefaultCenter.PostNotificationName(
+					UITextField.TextDidBeginEditingNotification,
+					textField);
+
+				handler.PlatformView.Date = changedDate.ToNSDate();
+				handler.PlatformView.SendActionForControlEvents(UIControlEvent.ValueChanged);
+
+				await AssertEventually(
+					() => datePicker.Date == changedDate,
+					message: "DatePicker did not update after native value changed.");
+
+				textField.Text = "20";
+				NSNotificationCenter.DefaultCenter.PostNotificationName(
+					UITextField.TextDidEndEditingNotification,
+					textField);
+
+				await AssertEventually(
+					() => datePicker.Date == originalDate &&
+						handler.PlatformView.Date.ToDateTime().Date == originalDate &&
+						!datePicker.IsFocused &&
+						!datePicker.IsOpen,
+					message: "DatePicker did not restore the date after native text editing was cancelled.");
+			});
+		}
+
 		static async Task AssertFocusCycle(DatePickerStub datePicker, DatePickerHandler handler)
 		{
 			var focusResult = handler.InvokeWithResult(nameof(IView.Focus), new FocusRequest());
