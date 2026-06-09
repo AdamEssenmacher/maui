@@ -116,9 +116,6 @@ namespace Microsoft.Maui.Controls.Handlers.Items2
 						if (cachedSize != CGSize.Empty)
 						{
 							_measuredSize = cachedSize.ToSize();
-							// Even when we have a cached measurement, we still need to call Measure
-							// to update the virtual view's internal state and bookkeeping
-							virtualView.Measure(constraints.Width, _measuredSize.Height);
 						}
 						else
 						{
