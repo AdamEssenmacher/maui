@@ -20,6 +20,7 @@ namespace Microsoft.Maui.Handlers
 			[nameof(IProgress.Progress)] = MapProgress,
 			[nameof(IProgress.ProgressColor)] = MapProgressColor,
 #if __IOS__ || MACCATALYST
+			[nameof(IView.Height)] = MapHeight,
 			[nameof(IView.FlowDirection)] = MapFlowDirection,
 #endif
 		};

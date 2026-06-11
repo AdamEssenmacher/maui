@@ -1,5 +1,6 @@
 ﻿using System;
 using Microsoft.Maui.Platform;
+using Microsoft.Maui.Primitives;
 using ObjCRuntime;
 using UIKit;
 
@@ -22,6 +23,16 @@ namespace Microsoft.Maui.Handlers
 		public static void MapProgressColor(IProgressBarHandler handler, IProgress progress)
 		{
 			handler.PlatformView?.UpdateProgressColor(progress);
+		}
+
+		internal static void MapHeight(IProgressBarHandler handler, IProgress progress)
+		{
+			ViewHandler.MapHeight(handler, progress);
+
+			if (handler.PlatformView is MauiProgressView progressView)
+			{
+				progressView.ScalesToArrangedHeight = Dimension.IsExplicitSet(progress.Height);
+			}
 		}
 
 		internal static void MapFlowDirection(IProgressBarHandler handler, IProgress progress)
