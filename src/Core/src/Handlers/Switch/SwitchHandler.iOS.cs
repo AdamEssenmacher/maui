@@ -60,7 +60,6 @@ namespace Microsoft.Maui.Handlers
 		class SwitchProxy
 		{
 			static readonly TimeSpan ColorReapplyDelay = TimeSpan.FromMilliseconds(10);
-			const int MaxColorReapplyAttempts = 5;
 
 			WeakReference<SwitchHandler>? _handler;
 			WeakReference<ISwitch>? _virtualView;
@@ -189,25 +188,25 @@ namespace Microsoft.Maui.Handlers
 
 				if (!_colorReapplyDispatchPending || platformViewChanged)
 				{
-					DispatchColorReapply(platformView, 0);
+					DispatchColorReapply(platformView);
 				}
 			}
 
-			void DispatchColorReapply(UISwitch platformView, int attempt)
+			void DispatchColorReapply(UISwitch platformView)
 			{
 				_colorReapplyDispatchPending = true;
 				DispatchQueue.MainQueue.DispatchAfter(
 					new DispatchTime(DispatchTime.Now, ColorReapplyDelay),
-					() => ProcessColorReapply(platformView, attempt));
+					() => ProcessColorReapply(platformView));
 			}
 
-			void ProcessColorReapply(UISwitch platformView, int attempt)
+			void ProcessColorReapply(UISwitch platformView)
 			{
 				try
 				{
 					if (!ReferenceEquals(_queuedColorReapplyPlatformView, platformView))
 					{
-						(platformView as MauiSwitch)?.ClearNeedsColorReapply();
+						ClearAllQueuedColorReapply(platformView);
 						return;
 					}
 
@@ -224,12 +223,6 @@ namespace Microsoft.Maui.Handlers
 
 					if (!platformView.IsReadyForColorReapply())
 					{
-						if (attempt < MaxColorReapplyAttempts)
-						{
-							DispatchColorReapply(platformView, attempt + 1);
-							return;
-						}
-
 						return;
 					}
 
@@ -238,12 +231,13 @@ namespace Microsoft.Maui.Handlers
 
 					if (reapplyKind.HasFlag(ColorReapplyKind.NativeDefaults))
 					{
-						(platformView as MauiSwitch)?.ClearNeedsNativeDefaultCleanup();
 						if (platformView.ShouldPreserveNativeDefaults(view))
 						{
-							platformView.ClearCustomColorState();
+							platformView.FinalizeNativeDefaultCleanup();
 							return;
 						}
+
+						(platformView as MauiSwitch)?.ClearNeedsNativeDefaultCleanup();
 					}
 
 					if (TryDetectMapperColorOverride(handler, view, platformView))

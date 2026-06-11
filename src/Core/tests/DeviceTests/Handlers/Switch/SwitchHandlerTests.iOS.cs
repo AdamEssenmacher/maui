@@ -408,12 +408,12 @@ namespace Microsoft.Maui.DeviceTests
 				handler.UpdateValue(nameof(ISwitch.TrackColor));
 				handler.UpdateValue(nameof(ISwitch.ThumbColor));
 
-				Assert.Equal(UISwitchStyle.Automatic, nativeSwitch.PreferredStyle);
-				Assert.Null(nativeSwitch.OnTintColor);
-				Assert.Null(nativeSwitch.ThumbTintColor);
-				Assert.False(
-					ColorComparison.ARGBEquivalent(nativeSwitch.GetTrackColor(), Colors.Red.ToPlatform(), tolerance: 0.1),
-					"Native switch track color kept the stale custom color after custom colors were cleared.");
+				await new Func<bool>(() =>
+					nativeSwitch.PreferredStyle == UISwitchStyle.Automatic
+					&& nativeSwitch.OnTintColor is null
+					&& nativeSwitch.ThumbTintColor is null
+					&& !ColorComparison.ARGBEquivalent(nativeSwitch.GetTrackColor(), Colors.Red.ToPlatform(), tolerance: 0.1))
+					.AssertEventually(message: "Native switch did not settle back to native defaults after custom colors were cleared.");
 
 				await AssertDefaultSwitchDoesNotReapplyColors(nativeSwitch);
 			});

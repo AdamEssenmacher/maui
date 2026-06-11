@@ -25,7 +25,7 @@ namespace Microsoft.Maui.Platform
 
 			if (uiSwitch.ShouldPreserveNativeDefaults(view))
 			{
-				uiSwitch.ClearCustomColorState();
+				uiSwitch.ClearCustomColorState(releaseTrackOwnership: !uiSwitch.ShouldKeepTrackCleanupOwnership(styleChanged));
 				uiSwitch.ReapplyNativeDefaultsAfterStyleUpdate(styleChanged);
 				return;
 			}
@@ -94,7 +94,7 @@ namespace Microsoft.Maui.Platform
 
 			if (uiSwitch.ShouldPreserveNativeDefaults(view))
 			{
-				uiSwitch.ClearCustomColorState();
+				uiSwitch.ClearCustomColorState(releaseTrackOwnership: !uiSwitch.ShouldKeepTrackCleanupOwnership(styleChanged));
 				uiSwitch.ReapplyNativeDefaultsAfterStyleUpdate(styleChanged);
 				return;
 			}
@@ -173,6 +173,16 @@ namespace Microsoft.Maui.Platform
 #endif
 		}
 
+		static bool ShouldKeepTrackCleanupOwnership(this UISwitch uiSwitch, bool styleChanged)
+		{
+			if (uiSwitch is not MauiSwitch mauiSwitch)
+			{
+				return false;
+			}
+
+			return mauiSwitch.NeedsNativeDefaultCleanup || styleChanged;
+		}
+
 		static void CompleteMapperColorOverrideDetection(this UISwitch uiSwitch, ISwitch view)
 		{
 			if (view.HasCustomColors())
@@ -228,7 +238,7 @@ namespace Microsoft.Maui.Platform
 			return first.Equals(second);
 		}
 
-		internal static void ClearCustomColorState(this UISwitch uiSwitch)
+		internal static void ClearCustomColorState(this UISwitch uiSwitch, bool releaseTrackOwnership = true)
 		{
 			uiSwitch.OnTintColor = null;
 			uiSwitch.ThumbTintColor = null;
@@ -236,8 +246,18 @@ namespace Microsoft.Maui.Platform
 			if (uiSwitch is MauiSwitch mauiSwitch && mauiSwitch.HasMauiTrackColorOverride)
 			{
 				uiSwitch.GetTrackSubview()?.BackgroundColor = null;
-				mauiSwitch.ClearMauiTrackColorOverride();
+
+				if (releaseTrackOwnership)
+				{
+					mauiSwitch.ClearMauiTrackColorOverride();
+				}
 			}
+		}
+
+		internal static void FinalizeNativeDefaultCleanup(this UISwitch uiSwitch)
+		{
+			uiSwitch.ClearCustomColorState();
+			(uiSwitch as MauiSwitch)?.ClearNeedsNativeDefaultCleanup();
 		}
 
 		internal static bool IsReadyForColorReapply(this UISwitch uiSwitch)
