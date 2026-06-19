@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net$(_MauiDotNetVersion)-android</TargetFrameworks>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>ActivityStateManagerLeakRepro</RootNamespace>
+    <SingleProject>true</SingleProject>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+    <NoWarn>$(NoWarn);XC0022</NoWarn>
+    <ApplicationTitle>ActivityStateManagerLeakRepro</ApplicationTitle>
+    <ApplicationId>com.microsoft.maui.activitystatemanagerleakrepro</ApplicationId>
+    <ApplicationDisplayVersion>1.0</ApplicationDisplayVersion>
+    <ApplicationVersion>1</ApplicationVersion>
+    <SupportedOSPlatformVersion>23.0</SupportedOSPlatformVersion>
+  </PropertyGroup>
+
+  <PropertyGroup Condition=" '$(ActivityStateManagerLeakReproAutoRun)' == 'true' ">
+    <DefineConstants>$(DefineConstants);ACTIVITY_STATE_MANAGER_LEAK_REPRO_AUTORUN</DefineConstants>
+  </PropertyGroup>
+
+  <ItemGroup Condition=" '$(UseMaui)' != 'true' ">
+    <ProjectReference Include="..\..\..\Core\src\Core.csproj" />
+    <ProjectReference Include="..\..\..\Controls\src\Xaml\Controls.Xaml.csproj" />
+    <ProjectReference Include="..\..\..\Controls\src\Core\Controls.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <MauiIcon Include="Resources\AppIcons\appicon.svg" ForegroundFile="Resources\AppIcons\appiconfg.svg" Color="#115E67" />
+    <MauiSplashScreen Include="Resources\Splash\splash.svg" Color="#115E67" BaseSize="128,128" />
+  </ItemGroup>
+
+  <Import Project="$(MauiSrcDirectory)Maui.InTree.props" Condition=" '$(UseMaui)' != 'true' " />
+
+</Project>
