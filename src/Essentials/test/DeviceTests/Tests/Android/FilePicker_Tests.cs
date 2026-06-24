@@ -51,6 +51,22 @@ namespace Microsoft.Maui.Essentials.DeviceTests.Shared
 		}
 
 		[Fact]
+		public void CreatePickerIntent_RequestsReadGrantWithoutPersistableGrant()
+		{
+			using var documentIntent = FilePickerImplementation.CreateDocumentPickerIntent(null, allowMultiple: true);
+			using var pickerIntent = FilePickerImplementation.CreatePickerIntent(null, allowMultiple: true);
+
+			Assert.Equal(Intent.ActionOpenDocument, documentIntent.Action);
+			Assert.Equal(FileMimeTypes.All, documentIntent.Type);
+			Assert.True(documentIntent.GetBooleanExtra(Intent.ExtraAllowMultiple, false));
+			Assert.True(documentIntent.Flags.HasFlag(ActivityFlags.GrantReadUriPermission));
+			Assert.False(documentIntent.Flags.HasFlag(ActivityFlags.GrantPersistableUriPermission));
+
+			Assert.True(pickerIntent.Flags.HasFlag(ActivityFlags.GrantReadUriPermission));
+			Assert.False(pickerIntent.Flags.HasFlag(ActivityFlags.GrantPersistableUriPermission));
+		}
+
+		[Fact]
 		[Trait(Traits.FileProvider, Traits.FeatureSupport.Supported)]
 		public async Task CreatePhysicalFileResults_ContentUriWithoutPhysicalPath_CopiesToEssentialsCacheAndPreservesMetadata()
 		{

@@ -15,20 +15,7 @@ namespace Microsoft.Maui.Storage
 	{
 		async Task<IEnumerable<FileResult>> PlatformPickAsync(PickOptions options, bool allowMultiple = false)
 		{
-			// Essentials supports >= API 19 where this action is available
-			var action = Intent.ActionOpenDocument;
-
-			var intent = new Intent(action);
-			intent.SetType(FileMimeTypes.All);
-			intent.PutExtra(Intent.ExtraAllowMultiple, allowMultiple);
-			intent.AddFlags(ActivityFlags.GrantReadUriPermission | ActivityFlags.GrantPersistableUriPermission);
-
-			var allowedTypes = options?.FileTypes?.Value?.ToArray();
-			if (allowedTypes?.Length > 0)
-				intent.PutExtra(Intent.ExtraMimeTypes, allowedTypes);
-
-			var pickerIntent = Intent.CreateChooser(intent, options?.PickerTitle ?? "Select file");
-			pickerIntent.AddFlags(ActivityFlags.GrantReadUriPermission | ActivityFlags.GrantPersistableUriPermission);
+			var pickerIntent = CreatePickerIntent(options, allowMultiple);
 			var requireExtendedAccess = !(OperatingSystem.IsAndroidVersionAtLeast(30) && Environment.IsExternalStorageManager);
 			var results = new List<FileResult>();
 
@@ -37,16 +24,7 @@ namespace Microsoft.Maui.Storage
 				async Task OnResultAsync(Intent intent)
 				{
 					var resultUris = GetResultUris(intent).ToList();
-					var persistedUris = TakePersistableReadPermissions(resultUris, intent.Flags);
-
-					try
-					{
-						results = await Task.Run(() => CreatePhysicalFileResults(resultUris, requireExtendedAccess));
-					}
-					finally
-					{
-						ReleasePersistableReadPermissions(persistedUris);
-					}
+					results = await Task.Run(() => CreatePhysicalFileResults(resultUris, requireExtendedAccess));
 				}
 
 				await IntermediateActivity.StartAsync(pickerIntent, PlatformUtils.requestCodeFilePicker, OnResultAsync);
@@ -56,6 +34,29 @@ namespace Microsoft.Maui.Storage
 			{
 				return [];
 			}
+		}
+
+		internal static Intent CreatePickerIntent(PickOptions options, bool allowMultiple = false)
+		{
+			var intent = CreateDocumentPickerIntent(options, allowMultiple);
+			var pickerIntent = Intent.CreateChooser(intent, options?.PickerTitle ?? "Select file");
+			pickerIntent.AddFlags(ActivityFlags.GrantReadUriPermission);
+			return pickerIntent;
+		}
+
+		internal static Intent CreateDocumentPickerIntent(PickOptions options, bool allowMultiple = false)
+		{
+			// Essentials supports >= API 19 where this action is available
+			var intent = new Intent(Intent.ActionOpenDocument);
+			intent.SetType(FileMimeTypes.All);
+			intent.PutExtra(Intent.ExtraAllowMultiple, allowMultiple);
+			intent.AddFlags(ActivityFlags.GrantReadUriPermission);
+
+			var allowedTypes = options?.FileTypes?.Value?.ToArray();
+			if (allowedTypes?.Length > 0)
+				intent.PutExtra(Intent.ExtraMimeTypes, allowedTypes);
+
+			return intent;
 		}
 
 		internal static IEnumerable<AndroidUri> GetResultUris(Intent intent)
@@ -136,53 +137,6 @@ namespace Microsoft.Maui.Storage
 
 			var physicalPath = FileSystemUtils.EnsurePhysicalPath(uri, requireExtendedAccess);
 			return new FileResult(physicalPath);
-		}
-
-		static List<AndroidUri> TakePersistableReadPermissions(IEnumerable<AndroidUri> uris, ActivityFlags resultFlags)
-		{
-			var readPermission = resultFlags & ActivityFlags.GrantReadUriPermission;
-			if (readPermission == 0)
-				return [];
-
-			var persistedUris = new List<AndroidUri>();
-			var seenUris = new HashSet<string>(StringComparer.Ordinal);
-
-			foreach (var uri in uris ?? Enumerable.Empty<AndroidUri>())
-			{
-				if (uri == null || !string.Equals(uri.Scheme, FileSystemUtils.UriSchemeContent, StringComparison.OrdinalIgnoreCase))
-					continue;
-
-				var uriString = uri.ToString();
-				if (!seenUris.Add(uriString))
-					continue;
-
-				try
-				{
-					Platform.AppContext.ContentResolver.TakePersistableUriPermission(uri, readPermission);
-					persistedUris.Add(uri);
-				}
-				catch
-				{
-					// Not all providers return persistable grants.
-				}
-			}
-
-			return persistedUris;
-		}
-
-		static void ReleasePersistableReadPermissions(IEnumerable<AndroidUri> uris)
-		{
-			foreach (var uri in uris ?? Enumerable.Empty<AndroidUri>())
-			{
-				try
-				{
-					Platform.AppContext.ContentResolver.ReleasePersistableUriPermission(uri, ActivityFlags.GrantReadUriPermission);
-				}
-				catch
-				{
-					// Ignore providers that revoke the grant as soon as the document is closed.
-				}
-			}
 		}
 	}
 

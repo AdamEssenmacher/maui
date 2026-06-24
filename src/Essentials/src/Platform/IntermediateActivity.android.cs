@@ -71,7 +71,12 @@ namespace Microsoft.Maui.ApplicationModel
 			var task = GetIntermediateTask(guid, true);
 
 			if (task is null)
+			{
+				// The activity can be recreated after the in-memory pending task was lost.
+				// Still finish so we do not leave a blank intermediate screen visible.
+				Finish();
 				return;
+			}
 
 			if (resultCode == Result.Canceled)
 			{
