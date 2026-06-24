@@ -54,8 +54,11 @@ namespace Microsoft.Maui.Storage
 
 		public static string EnsurePhysicalPath(AndroidUri uri, bool requireExtendedAccess = true)
 		{
+			if (uri == null)
+				throw new ArgumentNullException(nameof(uri));
+
 			// if this is a file, use that
-			if (uri.Scheme.Equals(UriSchemeFile, StringComparison.OrdinalIgnoreCase))
+			if (string.Equals(uri.Scheme, UriSchemeFile, StringComparison.OrdinalIgnoreCase))
 				return uri.Path;
 
 			// try resolve using the content provider
@@ -81,9 +84,12 @@ namespace Microsoft.Maui.Storage
 			return file.IsFile && file.CanRead();
 		}
 
-		static string ResolvePhysicalPath(AndroidUri uri, bool requireExtendedAccess = true)
+		internal static string ResolvePhysicalPath(AndroidUri uri, bool requireExtendedAccess = true)
 		{
-			if (uri.Scheme.Equals(UriSchemeFile, StringComparison.OrdinalIgnoreCase))
+			if (uri == null)
+				return null;
+
+			if (string.Equals(uri.Scheme, UriSchemeFile, StringComparison.OrdinalIgnoreCase))
 			{
 				// if it is a file, then return directly
 
@@ -101,7 +107,7 @@ namespace Microsoft.Maui.Storage
 					if (File.Exists(resolved))
 						return resolved;
 				}
-				else if (uri.Scheme.Equals(UriSchemeContent, StringComparison.OrdinalIgnoreCase))
+				else if (string.Equals(uri.Scheme, UriSchemeContent, StringComparison.OrdinalIgnoreCase))
 				{
 					var resolved = ResolveContentPath(uri);
 					if (File.Exists(resolved))
@@ -213,7 +219,7 @@ namespace Microsoft.Maui.Storage
 
 		static string CacheContentFile(AndroidUri uri)
 		{
-			if (!uri.Scheme.Equals(UriSchemeContent, StringComparison.OrdinalIgnoreCase))
+			if (!string.Equals(uri.Scheme, UriSchemeContent, StringComparison.OrdinalIgnoreCase))
 				return null;
 
 			Debug.WriteLine($"Copying content URI to local cache: '{uri}'");
@@ -242,7 +248,7 @@ namespace Microsoft.Maui.Storage
 			return tmpFile.CanonicalPath;
 		}
 
-		static Stream OpenContentStream(AndroidUri uri, out string extension)
+		internal static Stream OpenContentStream(AndroidUri uri, out string extension)
 		{
 			var isVirtual = IsVirtualFile(uri);
 			if (isVirtual)
@@ -293,7 +299,7 @@ namespace Microsoft.Maui.Storage
 			return null;
 		}
 
-		static string GetColumnValue(AndroidUri contentUri, string column, string selection = null, string[] selectionArgs = null)
+		internal static string GetColumnValue(AndroidUri contentUri, string column, string selection = null, string[] selectionArgs = null)
 		{
 			try
 			{
@@ -321,13 +327,62 @@ namespace Microsoft.Maui.Storage
 			return null;
 		}
 
-		static string GetFileExtension(AndroidUri uri)
+		internal static string GetFileExtension(AndroidUri uri)
 		{
-			var mimeType = Application.Context.ContentResolver.GetType(uri);
+			try
+			{
+				var mimeType = Application.Context.ContentResolver.GetType(uri);
 
-			return mimeType != null
-				? MimeTypeMap.Singleton.GetExtensionFromMimeType(mimeType)
-				: null;
+				return mimeType != null
+					? MimeTypeMap.Singleton.GetExtensionFromMimeType(mimeType)
+					: null;
+			}
+			catch
+			{
+				return null;
+			}
+		}
+
+		internal static string GetContentFileName(AndroidUri uri, string physicalPath = null)
+		{
+			var fileName = GetColumnValue(uri, IOpenableColumns.DisplayName);
+			if (string.IsNullOrWhiteSpace(fileName) && !string.IsNullOrWhiteSpace(physicalPath))
+				fileName = Path.GetFileName(physicalPath);
+			if (string.IsNullOrWhiteSpace(fileName))
+				fileName = uri.LastPathSegment;
+
+			var extension = GetFileExtension(uri);
+			if (string.IsNullOrWhiteSpace(extension) && !string.IsNullOrWhiteSpace(physicalPath))
+				extension = Path.GetExtension(physicalPath);
+
+			return EnsureFileName(fileName, extension);
+		}
+
+		internal static string GetContentType(AndroidUri uri, string physicalPath = null)
+		{
+			try
+			{
+				var contentType = Application.Context.ContentResolver.GetType(uri);
+				if (!string.IsNullOrWhiteSpace(contentType))
+					return contentType;
+			}
+			catch
+			{
+				// Ignore provider failures and fall back to the best-known extension.
+			}
+
+			var extension = Path.GetExtension(physicalPath);
+			if (string.IsNullOrWhiteSpace(extension))
+				extension = Path.GetExtension(GetContentFileName(uri, physicalPath));
+
+			if (!string.IsNullOrWhiteSpace(extension))
+			{
+				var contentType = MimeTypeMap.Singleton.GetMimeTypeFromExtension(extension.TrimStart('.'));
+				if (!string.IsNullOrWhiteSpace(contentType))
+					return contentType;
+			}
+
+			return null;
 		}
 
 		static string QueryContentResolverColumn(AndroidUri contentUri, string columnName, string selection = null, string[] selectionArgs = null)
