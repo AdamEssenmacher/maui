@@ -29,45 +29,32 @@ namespace Microsoft.Maui.Storage
 
 			var pickerIntent = Intent.CreateChooser(intent, options?.PickerTitle ?? "Select file");
 			pickerIntent.AddFlags(ActivityFlags.GrantReadUriPermission | ActivityFlags.GrantPersistableUriPermission);
-
-			var resultUris = new List<AndroidUri>();
-			var persistedUris = new List<AndroidUri>();
+			var requireExtendedAccess = !(OperatingSystem.IsAndroidVersionAtLeast(30) && Environment.IsExternalStorageManager);
+			var results = new List<FileResult>();
 
 			try
 			{
-				var resultFlags = (ActivityFlags)0;
-				void OnResult(Intent intent)
+				async Task OnResultAsync(Intent intent)
 				{
-					// The uri returned is only temporary and only lives as long as the Activity that requested it,
-					// so this means that it will always be cleaned up by the time we need it because we are using
-					// an intermediate activity.
-					resultFlags = intent.Flags;
-					resultUris.AddRange(GetResultUris(intent));
-					persistedUris.AddRange(TakePersistableReadPermissions(resultUris, resultFlags));
+					var resultUris = GetResultUris(intent).ToList();
+					var persistedUris = TakePersistableReadPermissions(resultUris, intent.Flags);
+
+					try
+					{
+						results = await Task.Run(() => CreatePhysicalFileResults(resultUris, requireExtendedAccess));
+					}
+					finally
+					{
+						ReleasePersistableReadPermissions(persistedUris);
+					}
 				}
 
-				await IntermediateActivity.StartAsync(pickerIntent, PlatformUtils.requestCodeFilePicker, onResult: OnResult);
-
-				bool requireExtendedAccess = !(OperatingSystem.IsAndroidVersionAtLeast(30) && Environment.IsExternalStorageManager);
-				return await Task.Run(() => (IEnumerable<FileResult>)CreatePhysicalFileResults(resultUris, requireExtendedAccess));
+				await IntermediateActivity.StartAsync(pickerIntent, PlatformUtils.requestCodeFilePicker, OnResultAsync);
+				return results;
 			}
 			catch (OperationCanceledException)
 			{
 				return [];
-			}
-			finally
-			{
-				foreach (var uri in persistedUris)
-				{
-					try
-					{
-						Platform.AppContext.ContentResolver.ReleasePersistableUriPermission(uri, ActivityFlags.GrantReadUriPermission);
-					}
-					catch
-					{
-						// Ignore providers that revoke the grant as soon as the document is closed.
-					}
-				}
 			}
 		}
 
@@ -126,7 +113,17 @@ namespace Microsoft.Maui.Storage
 			{
 				var path = FileSystemUtils.ResolvePhysicalPath(uri, requireExtendedAccess);
 				if (string.IsNullOrWhiteSpace(path) || !Path.IsPathRooted(path) || !FileSystemUtils.IsFileReadable(path))
-					path = FileSystemUtils.EnsurePhysicalPath(uri, requireExtendedAccess);
+				{
+					var materialized = FileSystemUtils.MaterializeContentFile(uri);
+					if (string.IsNullOrWhiteSpace(materialized?.FullPath) || !Path.IsPathRooted(materialized.FullPath) || !FileSystemUtils.IsFileReadable(materialized.FullPath))
+						throw new FileNotFoundException($"Unable to resolve absolute path or retrieve contents of URI '{uri}'.");
+
+					return new FileResult(materialized.FullPath)
+					{
+						FileName = materialized.FileName,
+						ContentType = materialized.ContentType,
+					};
+				}
 
 				var result = new FileResult(path)
 				{
@@ -171,6 +168,21 @@ namespace Microsoft.Maui.Storage
 			}
 
 			return persistedUris;
+		}
+
+		static void ReleasePersistableReadPermissions(IEnumerable<AndroidUri> uris)
+		{
+			foreach (var uri in uris ?? Enumerable.Empty<AndroidUri>())
+			{
+				try
+				{
+					Platform.AppContext.ContentResolver.ReleasePersistableUriPermission(uri, ActivityFlags.GrantReadUriPermission);
+				}
+				catch
+				{
+					// Ignore providers that revoke the grant as soon as the document is closed.
+				}
+			}
 		}
 	}
 

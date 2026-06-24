@@ -64,13 +64,11 @@ namespace Microsoft.Maui.ApplicationModel
 			base.OnSaveInstanceState(outState);
 		}
 
-		protected override void OnActivityResult(int requestCode, Result resultCode, Intent? data)
+		protected override async void OnActivityResult(int requestCode, Result resultCode, Intent? data)
 		{
 			base.OnActivityResult(requestCode, resultCode, data);
 
 			var task = GetIntermediateTask(guid, true);
-
-			Finish();
 
 			if (task is null)
 				return;
@@ -78,6 +76,7 @@ namespace Microsoft.Maui.ApplicationModel
 			if (resultCode == Result.Canceled)
 			{
 				task.TaskCompletionSource.TrySetCanceled();
+				Finish();
 			}
 			else
 			{
@@ -85,13 +84,20 @@ namespace Microsoft.Maui.ApplicationModel
 				{
 					data ??= new Intent();
 
-					task.OnResult?.Invoke(data);
+					if (task.OnResultAsync != null)
+						await task.OnResultAsync(data);
+					else
+						task.OnResult?.Invoke(data);
 
 					task.TaskCompletionSource.TrySetResult(data);
 				}
 				catch (Exception ex)
 				{
 					task.TaskCompletionSource.TrySetException(ex);
+				}
+				finally
+				{
+					Finish();
 				}
 			}
 		}
@@ -115,12 +121,21 @@ namespace Microsoft.Maui.ApplicationModel
 		}
 
 		public static Task<Intent> StartAsync(Intent intent, int requestCode, Action<Intent>? onCreate = null, Action<Intent>? onResult = null)
+			=> StartAsync(intent, requestCode, onCreate, onResult, null);
+
+		public static Task<Intent> StartAsync(Intent intent, int requestCode, Func<Intent, Task> onResultAsync)
+			=> StartAsync(intent, requestCode, null, null, onResultAsync);
+
+		public static Task<Intent> StartAsync(Intent intent, int requestCode, Action<Intent>? onCreate, Func<Intent, Task> onResultAsync)
+			=> StartAsync(intent, requestCode, onCreate, null, onResultAsync);
+
+		static Task<Intent> StartAsync(Intent intent, int requestCode, Action<Intent>? onCreate, Action<Intent>? onResult, Func<Intent, Task>? onResultAsync)
 		{
 			// make sure we have the activity
 			var activity = ActivityStateManager.Default.GetCurrentActivity(true)!;
 
 			// create a new task
-			var data = new IntermediateTask(requestCode, onCreate, onResult);
+			var data = new IntermediateTask(requestCode, onCreate, onResult, onResultAsync);
 			pendingTasks[data.Id] = data;
 
 			// create the intermediate intent, and add the real intent to it
@@ -152,7 +167,7 @@ namespace Microsoft.Maui.ApplicationModel
 
 		class IntermediateTask
 		{
-			public IntermediateTask(int requestCode, Action<Intent>? onCreate, Action<Intent>? onResult)
+			public IntermediateTask(int requestCode, Action<Intent>? onCreate, Action<Intent>? onResult, Func<Intent, Task>? onResultAsync)
 			{
 				Id = Guid.NewGuid().ToString();
 				RequestCode = requestCode;
@@ -160,6 +175,7 @@ namespace Microsoft.Maui.ApplicationModel
 
 				OnCreate = onCreate;
 				OnResult = onResult;
+				OnResultAsync = onResultAsync;
 			}
 
 			public string Id { get; }
@@ -171,6 +187,8 @@ namespace Microsoft.Maui.ApplicationModel
 			public Action<Intent>? OnCreate { get; }
 
 			public Action<Intent>? OnResult { get; }
+
+			public Func<Intent, Task>? OnResultAsync { get; }
 		}
 	}
 }
