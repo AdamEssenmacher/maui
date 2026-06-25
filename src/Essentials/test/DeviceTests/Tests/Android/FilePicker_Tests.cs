@@ -214,7 +214,7 @@ namespace Microsoft.Maui.Essentials.DeviceTests.Shared
 		[InlineData("content://maui.test/..")]
 		public void GetContentFileName_InvalidLastPathSegment_IsSanitized(string uriString)
 		{
-			var fileName = FileSystemUtils.GetContentFileName(AndroidUri.Parse(uriString)!, materializedExtension: "pdf");
+			var fileName = FileSystemUtils.GetContentFileName(AndroidUri.Parse(uriString)!, forcedExtension: "pdf");
 
 			Assert.False(string.IsNullOrWhiteSpace(fileName));
 			Assert.NotEqual(".", fileName);
@@ -248,7 +248,27 @@ namespace Microsoft.Maui.Essentials.DeviceTests.Shared
 
 		[Fact]
 		[Trait(Traits.FileProvider, Traits.FeatureSupport.Supported)]
-		public void GetContentFileName_MaterializedExtension_PrefersMaterializedExtensionOverProviderMetadata()
+		public void GetContentFileName_ExistingProviderExtension_IsPreservedWithoutForcedExtension()
+		{
+			var sourceFileName = "provider-name.md";
+			var sourcePath = GetSourcePath(sourceFileName);
+
+			try
+			{
+				var uri = CreateContentUri(sourceFileName, Encoding.UTF8.GetBytes("provider name"));
+				var fileName = FileSystemUtils.GetContentFileName(uri);
+
+				Assert.Equal(sourceFileName, fileName);
+			}
+			finally
+			{
+				DeleteCreatedFile(sourcePath);
+			}
+		}
+
+		[Fact]
+		[Trait(Traits.FileProvider, Traits.FeatureSupport.Supported)]
+		public void GetContentFileName_ForcedExtension_ReplacesProviderExtension()
 		{
 			var sourceFileName = "provider-name.txt";
 			var sourcePath = GetSourcePath(sourceFileName);
@@ -256,7 +276,7 @@ namespace Microsoft.Maui.Essentials.DeviceTests.Shared
 			try
 			{
 				var uri = CreateContentUri(sourceFileName, Encoding.UTF8.GetBytes("provider name"));
-				var fileName = FileSystemUtils.GetContentFileName(uri, materializedExtension: "pdf");
+				var fileName = FileSystemUtils.GetContentFileName(uri, forcedExtension: "pdf");
 
 				Assert.Equal("provider-name.pdf", fileName);
 			}

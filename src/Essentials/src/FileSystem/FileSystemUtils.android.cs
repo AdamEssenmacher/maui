@@ -244,12 +244,13 @@ namespace Microsoft.Maui.Storage
 			Debug.WriteLine($"Copying content URI to local cache: '{uri}'");
 
 			// open the source stream
-			using var srcStream = OpenContentStream(uri, out var extension, out var contentType);
+			var isVirtual = IsVirtualFile(uri);
+			using var srcStream = OpenContentStream(uri, isVirtual, out var extension, out var contentType);
 			if (srcStream == null)
 				return null;
 
 			// resolve or generate a valid destination path
-			var filename = GetContentFileName(uri, materializedExtension: extension);
+			var filename = GetContentFileName(uri, forcedExtension: isVirtual ? extension : null);
 
 			// create a temporary file
 			var hasPermission = Permissions.IsDeclaredInManifest(global::Android.Manifest.Permission.WriteExternalStorage);
@@ -272,6 +273,11 @@ namespace Microsoft.Maui.Storage
 		internal static Stream OpenContentStream(AndroidUri uri, out string extension, out string contentType)
 		{
 			var isVirtual = IsVirtualFile(uri);
+			return OpenContentStream(uri, isVirtual, out extension, out contentType);
+		}
+
+		static Stream OpenContentStream(AndroidUri uri, bool isVirtual, out string extension, out string contentType)
+		{
 			if (isVirtual)
 			{
 				Debug.WriteLine($"Content URI was virtual: '{uri}'");
@@ -371,7 +377,7 @@ namespace Microsoft.Maui.Storage
 				: null;
 		}
 
-		internal static string GetContentFileName(AndroidUri uri, string physicalPath = null, string materializedExtension = null)
+		internal static string GetContentFileName(AndroidUri uri, string physicalPath = null, string forcedExtension = null)
 		{
 			var fileName = GetColumnValue(uri, IOpenableColumns.DisplayName);
 			if (string.IsNullOrWhiteSpace(fileName) && !string.IsNullOrWhiteSpace(physicalPath))
@@ -381,8 +387,8 @@ namespace Microsoft.Maui.Storage
 
 			fileName = EnsureFileName(fileName, null);
 
-			if (!string.IsNullOrWhiteSpace(materializedExtension))
-				return Path.ChangeExtension(fileName, materializedExtension);
+			if (!string.IsNullOrWhiteSpace(forcedExtension))
+				return Path.ChangeExtension(fileName, forcedExtension);
 
 			var extension = GetFileExtension(uri);
 			if (string.IsNullOrWhiteSpace(extension) && !string.IsNullOrWhiteSpace(physicalPath))
