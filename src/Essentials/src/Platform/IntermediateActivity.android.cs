@@ -80,30 +80,36 @@ namespace Microsoft.Maui.ApplicationModel
 
 			if (resultCode == Result.Canceled)
 			{
-				task.TaskCompletionSource.TrySetCanceled();
 				Finish();
+				task.TaskCompletionSource.TrySetCanceled();
 			}
 			else
 			{
+				Exception? exception = null;
+				Intent? resultData = null;
+
 				try
 				{
-					data ??= new Intent();
+					resultData = data ?? new Intent();
 
 					if (task.OnResultAsync != null)
-						await task.OnResultAsync(data);
+						await task.OnResultAsync(resultData);
 					else
-						task.OnResult?.Invoke(data);
-
-					task.TaskCompletionSource.TrySetResult(data);
+						task.OnResult?.Invoke(resultData);
 				}
 				catch (Exception ex)
 				{
-					task.TaskCompletionSource.TrySetException(ex);
+					exception = ex;
 				}
 				finally
 				{
 					Finish();
 				}
+
+				if (exception != null)
+					task.TaskCompletionSource.TrySetException(exception);
+				else
+					task.TaskCompletionSource.TrySetResult(resultData!);
 			}
 		}
 
