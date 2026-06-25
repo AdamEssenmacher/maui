@@ -1,23 +1,28 @@
+﻿#nullable enable
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Android.App;
 using Android.Content;
+using Microsoft.Maui.ApplicationModel;
 using Microsoft.Maui.Storage;
 using Xunit;
 using AndroidUri = Android.Net.Uri;
 
 namespace Microsoft.Maui.Essentials.DeviceTests.Shared
 {
+	using Platform = Microsoft.Maui.ApplicationModel.Platform;
+
 	[Category("FilePicker")]
 	public class Android_FilePicker_Tests
 	{
 		[Fact]
 		public void GetResultUris_ReturnsDataUri()
 		{
-			var uri = AndroidUri.Parse("content://maui.test/data");
+			var uri = AndroidUri.Parse("content://maui.test/data")!;
 			using var intent = new Intent();
 			intent.SetData(uri);
 
@@ -27,8 +32,8 @@ namespace Microsoft.Maui.Essentials.DeviceTests.Shared
 		[Fact]
 		public void GetResultUris_ReturnsClipDataUrisInOrder()
 		{
-			var first = AndroidUri.Parse("content://maui.test/first");
-			var second = AndroidUri.Parse("content://maui.test/second");
+			var first = AndroidUri.Parse("content://maui.test/first")!;
+			var second = AndroidUri.Parse("content://maui.test/second")!;
 			using var intent = new Intent();
 			intent.ClipData = CreateClipData(first, second);
 
@@ -36,16 +41,27 @@ namespace Microsoft.Maui.Essentials.DeviceTests.Shared
 		}
 
 		[Fact]
-		public void GetResultUris_ReturnsDataBeforeUniqueClipDataUris()
+		public void GetResultUris_PrefersClipDataOverData()
 		{
-			var data = AndroidUri.Parse("content://maui.test/data");
-			var first = AndroidUri.Parse("content://maui.test/first");
-			var second = AndroidUri.Parse("content://maui.test/second");
+			var data = AndroidUri.Parse("content://maui.test/data")!;
+			var first = AndroidUri.Parse("content://maui.test/first")!;
+			var second = AndroidUri.Parse("content://maui.test/second")!;
 			using var intent = new Intent();
 			intent.SetData(data);
 			intent.ClipData = CreateClipData(first, data, second, first);
 
-			Assert.Equal(new[] { data.ToString(), first.ToString(), second.ToString() }, GetResultUriStrings(intent));
+			Assert.Equal(new[] { first.ToString(), data.ToString(), second.ToString(), first.ToString() }, GetResultUriStrings(intent));
+		}
+
+		[Fact]
+		public void GetResultUris_PreservesDuplicateClipDataUris()
+		{
+			var first = AndroidUri.Parse("content://maui.test/first")!;
+			var second = AndroidUri.Parse("content://maui.test/second")!;
+			using var intent = new Intent();
+			intent.ClipData = CreateClipData(first, second, first);
+
+			Assert.Equal(new[] { first.ToString(), second.ToString(), first.ToString() }, GetResultUriStrings(intent));
 		}
 
 		[Fact]
@@ -71,7 +87,7 @@ namespace Microsoft.Maui.Essentials.DeviceTests.Shared
 			var fileName = "content-uri-file-result.txt";
 			var sourcePath = GetSourcePath(fileName);
 			var expected = Encoding.UTF8.GetBytes("The file picker contents.");
-			FileResult result = null;
+			FileResult? result = null;
 
 			try
 			{
@@ -85,6 +101,9 @@ namespace Microsoft.Maui.Essentials.DeviceTests.Shared
 				Assert.NotEqual(sourcePath, result.FullPath);
 				Assert.Equal(fileName, result.FileName);
 				Assert.Equal(FileMimeTypes.TextPlain, result.ContentType);
+
+				DeleteCreatedFile(sourcePath);
+				Assert.False(File.Exists(sourcePath));
 				Assert.Equal(expected, await ReadAllBytesAsync(await result.OpenReadAsync()));
 			}
 			finally
@@ -96,7 +115,7 @@ namespace Microsoft.Maui.Essentials.DeviceTests.Shared
 
 		[Fact]
 		[Trait(Traits.FileProvider, Traits.FeatureSupport.Supported)]
-		public void CreatePhysicalFileResults_DedupedContentUris_PreserveOrderAndReadablePaths()
+		public void CreatePhysicalFileResults_ClipDataUris_PreserveOrderAndReadablePaths()
 		{
 			var fileNames = new[] { "content-data.txt", "content-first.txt", "content-second.txt" };
 			var sourcePaths = fileNames.Select(GetSourcePath).ToArray();
@@ -116,7 +135,7 @@ namespace Microsoft.Maui.Essentials.DeviceTests.Shared
 					FilePickerImplementation.GetResultUris(intent),
 					requireExtendedAccess: true);
 
-				Assert.Equal(fileNames, results.Select(result => result.FileName));
+				Assert.Equal(new[] { "content-first.txt", "content-data.txt", "content-second.txt", "content-first.txt" }, results.Select(result => result.FileName));
 				Assert.All(results, result =>
 				{
 					Assert.True(Path.IsPathRooted(result.FullPath));
@@ -133,12 +152,69 @@ namespace Microsoft.Maui.Essentials.DeviceTests.Shared
 			}
 		}
 
+		[Fact]
+		public async Task IntermediateActivity_WaitsForOnResultAsyncBeforeDestroy()
+		{
+			var callbackEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+			var releaseCallback = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+			var intermediateDestroyed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+			Activity? observedIntermediateActivity = null;
+			Task<Intent>? startTask = null;
+
+			void OnActivityStateChanged(object? sender, ActivityStateChangedEventArgs e)
+			{
+				if (e.Activity is not IntermediateActivity)
+					return;
+
+				observedIntermediateActivity ??= e.Activity;
+				if (!ReferenceEquals(e.Activity, observedIntermediateActivity))
+					return;
+
+				if (e.State == ActivityState.Destroyed)
+					intermediateDestroyed.TrySetResult();
+			}
+
+			Platform.ActivityStateChanged += OnActivityStateChanged;
+
+			try
+			{
+				await MainThread.InvokeOnMainThreadAsync(() =>
+				{
+					var intent = new Intent(Platform.CurrentActivity!, typeof(FilePickerTestResultActivity));
+					startTask = IntermediateActivity.StartAsync(
+						intent,
+						PlatformUtils.requestCodeFilePicker,
+						async _ =>
+						{
+							callbackEntered.TrySetResult();
+							await releaseCallback.Task;
+						});
+				});
+
+				await callbackEntered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+
+				var destroyedWhileBlocked = await Task.WhenAny(intermediateDestroyed.Task, Task.Delay(TimeSpan.FromMilliseconds(500)));
+				Assert.NotSame(intermediateDestroyed.Task, destroyedWhileBlocked);
+
+				releaseCallback.TrySetResult();
+
+				var localStartTask = startTask ?? throw new InvalidOperationException("Intermediate activity did not start.");
+				await localStartTask.WaitAsync(TimeSpan.FromSeconds(10));
+				await intermediateDestroyed.Task.WaitAsync(TimeSpan.FromSeconds(10));
+			}
+			finally
+			{
+				releaseCallback.TrySetResult();
+				Platform.ActivityStateChanged -= OnActivityStateChanged;
+			}
+		}
+
 		[Theory]
 		[InlineData("content://maui.test/.")]
 		[InlineData("content://maui.test/..")]
 		public void GetContentFileName_InvalidLastPathSegment_IsSanitized(string uriString)
 		{
-			var fileName = FileSystemUtils.GetContentFileName(AndroidUri.Parse(uriString), materializedExtension: "pdf");
+			var fileName = FileSystemUtils.GetContentFileName(AndroidUri.Parse(uriString)!, materializedExtension: "pdf");
 
 			Assert.False(string.IsNullOrWhiteSpace(fileName));
 			Assert.NotEqual(".", fileName);
@@ -211,7 +287,7 @@ namespace Microsoft.Maui.Essentials.DeviceTests.Shared
 		}
 
 		static IEnumerable<string> GetResultUriStrings(Intent intent) =>
-			FilePickerImplementation.GetResultUris(intent).Select(uri => uri.ToString());
+			FilePickerImplementation.GetResultUris(intent).Select(uri => uri.ToString()!);
 
 		static async Task<byte[]> ReadAllBytesAsync(Stream stream)
 		{
@@ -232,7 +308,7 @@ namespace Microsoft.Maui.Essentials.DeviceTests.Shared
 				DeleteMaterializedFileDirectory(result?.FullPath);
 		}
 
-		static void DeleteMaterializedFileDirectory(string fullPath)
+		static void DeleteMaterializedFileDirectory(string? fullPath)
 		{
 			if (string.IsNullOrWhiteSpace(fullPath) || !Path.IsPathRooted(fullPath))
 				return;

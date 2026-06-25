@@ -61,33 +61,23 @@ namespace Microsoft.Maui.Storage
 
 		internal static IEnumerable<AndroidUri> GetResultUris(Intent intent)
 		{
-			var uris = new List<AndroidUri>();
-			var seenUris = new HashSet<string>(StringComparer.Ordinal);
-
-			AddUri(intent.Data);
-
-			if (intent.ClipData != null)
+			if (intent.ClipData?.ItemCount > 0)
 			{
+				var uris = new List<AndroidUri>();
+
 				for (var i = 0; i < intent.ClipData.ItemCount; i++)
 				{
 					var uri = intent.ClipData.GetItemAt(i)?.Uri;
-					AddUri(uri);
+					if (uri != null)
+						uris.Add(uri);
 				}
+
+				return uris;
 			}
 
-			return uris;
-
-			void AddUri(AndroidUri uri)
-			{
-				if (uri == null)
-					return;
-
-				var uriString = uri.ToString();
-				if (!seenUris.Add(uriString))
-					return;
-
-				uris.Add(uri);
-			}
+			return intent.Data is null
+				? Enumerable.Empty<AndroidUri>()
+				: new[] { intent.Data };
 		}
 
 		internal static List<FileResult> CreatePhysicalFileResults(IEnumerable<AndroidUri> uris, bool requireExtendedAccess)
