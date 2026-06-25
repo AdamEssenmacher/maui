@@ -11,8 +11,6 @@ using AndroidUri = Android.Net.Uri;
 
 namespace Microsoft.Maui.Essentials.DeviceTests.Shared
 {
-	using Platform = Microsoft.Maui.ApplicationModel.Platform;
-
 	[Category("FilePicker")]
 	public class Android_FilePicker_Tests
 	{
@@ -70,49 +68,69 @@ namespace Microsoft.Maui.Essentials.DeviceTests.Shared
 		[Trait(Traits.FileProvider, Traits.FeatureSupport.Supported)]
 		public async Task CreatePhysicalFileResults_ContentUriWithoutPhysicalPath_CopiesToEssentialsCacheAndPreservesMetadata()
 		{
-			DeleteEssentialsCacheDirectories();
-
 			var fileName = "content-uri-file-result.txt";
-			var sourcePath = Path.Combine(FileSystem.CacheDirectory, fileName);
+			var sourcePath = GetSourcePath(fileName);
 			var expected = Encoding.UTF8.GetBytes("The file picker contents.");
-			var uri = CreateContentUri(fileName, expected);
-			var result = FilePickerImplementation.CreatePhysicalFileResults(new[] { uri }, requireExtendedAccess: true).Single();
+			FileResult result = null;
 
-			Assert.True(Path.IsPathRooted(result.FullPath));
-			Assert.True(File.Exists(result.FullPath));
-			Assert.True(new Java.IO.File(result.FullPath).IsFile);
-			Assert.Contains(FileSystemUtils.EssentialsFolderHash, result.FullPath, StringComparison.Ordinal);
-			Assert.NotEqual(sourcePath, result.FullPath);
-			Assert.Equal(fileName, result.FileName);
-			Assert.Equal(FileMimeTypes.TextPlain, result.ContentType);
-			Assert.Equal(expected, await ReadAllBytesAsync(await result.OpenReadAsync()));
+			try
+			{
+				var uri = CreateContentUri(fileName, expected);
+				result = FilePickerImplementation.CreatePhysicalFileResults(new[] { uri }, requireExtendedAccess: true).Single();
+
+				Assert.True(Path.IsPathRooted(result.FullPath));
+				Assert.True(File.Exists(result.FullPath));
+				Assert.True(new Java.IO.File(result.FullPath).IsFile);
+				Assert.Contains(FileSystemUtils.EssentialsFolderHash, result.FullPath, StringComparison.Ordinal);
+				Assert.NotEqual(sourcePath, result.FullPath);
+				Assert.Equal(fileName, result.FileName);
+				Assert.Equal(FileMimeTypes.TextPlain, result.ContentType);
+				Assert.Equal(expected, await ReadAllBytesAsync(await result.OpenReadAsync()));
+			}
+			finally
+			{
+				DeleteMaterializedFileDirectory(result?.FullPath);
+				DeleteCreatedFile(sourcePath);
+			}
 		}
 
 		[Fact]
 		[Trait(Traits.FileProvider, Traits.FeatureSupport.Supported)]
 		public void CreatePhysicalFileResults_DedupedContentUris_PreserveOrderAndReadablePaths()
 		{
-			DeleteEssentialsCacheDirectories();
+			var fileNames = new[] { "content-data.txt", "content-first.txt", "content-second.txt" };
+			var sourcePaths = fileNames.Select(GetSourcePath).ToArray();
+			var results = new List<FileResult>();
 
-			var data = CreateContentUri("content-data.txt", Encoding.UTF8.GetBytes("data"));
-			var first = CreateContentUri("content-first.txt", Encoding.UTF8.GetBytes("first"));
-			var second = CreateContentUri("content-second.txt", Encoding.UTF8.GetBytes("second"));
-
-			using var intent = new Intent();
-			intent.SetData(data);
-			intent.ClipData = CreateClipData(first, data, second, first);
-
-			var results = FilePickerImplementation.CreatePhysicalFileResults(
-				FilePickerImplementation.GetResultUris(intent),
-				requireExtendedAccess: true);
-
-			Assert.Equal(new[] { "content-data.txt", "content-first.txt", "content-second.txt" }, results.Select(result => result.FileName));
-			Assert.All(results, result =>
+			try
 			{
-				Assert.True(Path.IsPathRooted(result.FullPath));
-				Assert.True(File.Exists(result.FullPath));
-				Assert.True(new Java.IO.File(result.FullPath).IsFile);
-			});
+				var data = CreateContentUri(fileNames[0], Encoding.UTF8.GetBytes("data"));
+				var first = CreateContentUri(fileNames[1], Encoding.UTF8.GetBytes("first"));
+				var second = CreateContentUri(fileNames[2], Encoding.UTF8.GetBytes("second"));
+
+				using var intent = new Intent();
+				intent.SetData(data);
+				intent.ClipData = CreateClipData(first, data, second, first);
+
+				results = FilePickerImplementation.CreatePhysicalFileResults(
+					FilePickerImplementation.GetResultUris(intent),
+					requireExtendedAccess: true);
+
+				Assert.Equal(fileNames, results.Select(result => result.FileName));
+				Assert.All(results, result =>
+				{
+					Assert.True(Path.IsPathRooted(result.FullPath));
+					Assert.True(File.Exists(result.FullPath));
+					Assert.True(new Java.IO.File(result.FullPath).IsFile);
+				});
+			}
+			finally
+			{
+				DeleteMaterializedFileDirectories(results);
+
+				foreach (var sourcePath in sourcePaths)
+					DeleteCreatedFile(sourcePath);
+			}
 		}
 
 		[Theory]
@@ -133,28 +151,48 @@ namespace Microsoft.Maui.Essentials.DeviceTests.Shared
 		[Trait(Traits.FileProvider, Traits.FeatureSupport.Supported)]
 		public void GetContentType_MaterializedContentType_PrefersMaterializedType()
 		{
-			var uri = CreateContentUri("provider-type.txt", Encoding.UTF8.GetBytes("provider type"));
-			var contentType = FileSystemUtils.GetContentType(
-				uri,
-				physicalPath: Path.Combine(FileSystem.CacheDirectory, "materialized.pdf"),
-				materializedContentType: FileMimeTypes.Pdf);
+			var fileName = "provider-type.txt";
+			var sourcePath = GetSourcePath(fileName);
 
-			Assert.Equal(FileMimeTypes.Pdf, contentType);
+			try
+			{
+				var uri = CreateContentUri(fileName, Encoding.UTF8.GetBytes("provider type"));
+				var contentType = FileSystemUtils.GetContentType(
+					uri,
+					physicalPath: Path.Combine(FileSystem.CacheDirectory, "materialized.pdf"),
+					materializedContentType: FileMimeTypes.Pdf);
+
+				Assert.Equal(FileMimeTypes.Pdf, contentType);
+			}
+			finally
+			{
+				DeleteCreatedFile(sourcePath);
+			}
 		}
 
 		[Fact]
 		[Trait(Traits.FileProvider, Traits.FeatureSupport.Supported)]
 		public void GetContentFileName_MaterializedExtension_PrefersMaterializedExtensionOverProviderMetadata()
 		{
-			var uri = CreateContentUri("provider-name.txt", Encoding.UTF8.GetBytes("provider name"));
-			var fileName = FileSystemUtils.GetContentFileName(uri, materializedExtension: "pdf");
+			var sourceFileName = "provider-name.txt";
+			var sourcePath = GetSourcePath(sourceFileName);
 
-			Assert.Equal("provider-name.pdf", fileName);
+			try
+			{
+				var uri = CreateContentUri(sourceFileName, Encoding.UTF8.GetBytes("provider name"));
+				var fileName = FileSystemUtils.GetContentFileName(uri, materializedExtension: "pdf");
+
+				Assert.Equal("provider-name.pdf", fileName);
+			}
+			finally
+			{
+				DeleteCreatedFile(sourcePath);
+			}
 		}
 
 		static AndroidUri CreateContentUri(string fileName, byte[] contents)
 		{
-			var filePath = Path.Combine(FileSystem.CacheDirectory, fileName);
+			var filePath = GetSourcePath(fileName);
 			if (File.Exists(filePath))
 				File.Delete(filePath);
 
@@ -185,26 +223,39 @@ namespace Microsoft.Maui.Essentials.DeviceTests.Shared
 			}
 		}
 
-		static void DeleteEssentialsCacheDirectories()
+		static string GetSourcePath(string fileName) =>
+			Path.Combine(FileSystem.CacheDirectory, fileName);
+
+		static void DeleteMaterializedFileDirectories(IEnumerable<FileResult> results)
 		{
-			foreach (var cacheDirectory in GetEssentialsCacheDirectories())
-			{
-				if (Directory.Exists(cacheDirectory))
-					Directory.Delete(cacheDirectory, recursive: true);
-			}
+			foreach (var result in results ?? Enumerable.Empty<FileResult>())
+				DeleteMaterializedFileDirectory(result?.FullPath);
 		}
 
-		static IEnumerable<string> GetEssentialsCacheDirectories()
+		static void DeleteMaterializedFileDirectory(string fullPath)
 		{
-			var roots = new[]
-			{
-				Platform.AppContext.CacheDir?.AbsolutePath,
-				Platform.AppContext.ExternalCacheDir?.AbsolutePath,
-			};
+			if (string.IsNullOrWhiteSpace(fullPath) || !Path.IsPathRooted(fullPath))
+				return;
 
-			return roots
-				.Where(root => !string.IsNullOrWhiteSpace(root))
-				.Select(root => Path.Combine(root, FileSystemUtils.EssentialsFolderHash));
+			var materializedDirectory = Path.GetDirectoryName(Path.GetFullPath(fullPath));
+			if (string.IsNullOrWhiteSpace(materializedDirectory))
+				return;
+
+			var tempDirectory = new DirectoryInfo(materializedDirectory);
+			var essentialsDirectory = tempDirectory.Parent;
+			if (essentialsDirectory == null ||
+				!string.Equals(essentialsDirectory.Name, FileSystemUtils.EssentialsFolderHash, StringComparison.Ordinal) ||
+				!Guid.TryParseExact(tempDirectory.Name, "N", out _))
+				return;
+
+			if (Directory.Exists(tempDirectory.FullName))
+				Directory.Delete(tempDirectory.FullName, recursive: true);
+		}
+
+		static void DeleteCreatedFile(string filePath)
+		{
+			if (!string.IsNullOrWhiteSpace(filePath) && File.Exists(filePath))
+				File.Delete(filePath);
 		}
 	}
 }
