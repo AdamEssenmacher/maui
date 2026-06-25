@@ -372,7 +372,7 @@ namespace Microsoft.Maui.Storage
 		{
 			contentType ??= GetMimeType(uri);
 
-			return contentType != null
+			return !IsGenericMimeType(contentType)
 				? MimeTypeMap.Singleton.GetExtensionFromMimeType(contentType)
 				: null;
 		}
@@ -390,20 +390,25 @@ namespace Microsoft.Maui.Storage
 			if (!string.IsNullOrWhiteSpace(forcedExtension))
 				return Path.ChangeExtension(fileName, forcedExtension);
 
-			var extension = GetFileExtension(uri);
-			if (string.IsNullOrWhiteSpace(extension) && !string.IsNullOrWhiteSpace(physicalPath))
-				extension = Path.GetExtension(physicalPath);
+			if (Path.HasExtension(fileName))
+				return fileName;
+
+			var extension = !string.IsNullOrWhiteSpace(physicalPath)
+				? Path.GetExtension(physicalPath)
+				: null;
+			if (string.IsNullOrWhiteSpace(extension))
+				extension = GetFileExtension(uri);
 
 			return EnsureFileName(fileName, extension);
 		}
 
 		internal static string GetContentType(AndroidUri uri, string physicalPath = null, string materializedContentType = null)
 		{
-			if (!string.IsNullOrWhiteSpace(materializedContentType))
+			if (!IsGenericMimeType(materializedContentType))
 				return materializedContentType;
 
 			var providerContentType = GetMimeType(uri);
-			if (!string.IsNullOrWhiteSpace(providerContentType))
+			if (!IsGenericMimeType(providerContentType))
 				return providerContentType;
 
 			var extension = Path.GetExtension(physicalPath);
@@ -413,11 +418,21 @@ namespace Microsoft.Maui.Storage
 			if (!string.IsNullOrWhiteSpace(extension))
 			{
 				var contentType = MimeTypeMap.Singleton.GetMimeTypeFromExtension(extension.TrimStart('.'));
-				if (!string.IsNullOrWhiteSpace(contentType))
+				if (!IsGenericMimeType(contentType))
 					return contentType;
 			}
 
 			return null;
+		}
+
+		internal static bool IsGenericMimeType(string contentType)
+		{
+			if (string.IsNullOrWhiteSpace(contentType))
+				return true;
+
+			return string.Equals(contentType, FileMimeTypes.All, StringComparison.OrdinalIgnoreCase) ||
+				string.Equals(contentType, FileMimeTypes.OctetStream, StringComparison.OrdinalIgnoreCase) ||
+				contentType.EndsWith("/*", StringComparison.OrdinalIgnoreCase);
 		}
 
 		static string QueryContentResolverColumn(AndroidUri contentUri, string columnName, string selection = null, string[] selectionArgs = null)

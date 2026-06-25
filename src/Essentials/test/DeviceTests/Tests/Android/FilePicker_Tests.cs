@@ -246,6 +246,76 @@ namespace Microsoft.Maui.Essentials.DeviceTests.Shared
 			}
 		}
 
+		[Theory]
+		[InlineData(FileMimeTypes.OctetStream)]
+		[InlineData(FileMimeTypes.All)]
+		[InlineData("image/*")]
+		public void GetFileExtension_GenericMimeType_ReturnsNull(string contentType)
+		{
+			var uri = AndroidUri.Parse("content://maui.test/generic")!;
+
+			Assert.Null(FileSystemUtils.GetFileExtension(uri, contentType));
+		}
+
+		[Fact]
+		[Trait(Traits.FileProvider, Traits.FeatureSupport.Supported)]
+		public void GetContentFileName_GenericProviderMime_UsesPhysicalPathExtension()
+		{
+			var sourceFileName = "provider-generic";
+			var sourcePath = GetSourcePath(sourceFileName);
+
+			try
+			{
+				var uri = CreateContentUri(sourceFileName, Encoding.UTF8.GetBytes("provider generic"));
+				var providerContentType = Application.Context!.ContentResolver!.GetType(uri);
+				var physicalPath = Path.Combine(FileSystem.CacheDirectory, "resolved.pdf");
+				var fileName = FileSystemUtils.GetContentFileName(uri, physicalPath);
+
+				Assert.True(FileSystemUtils.IsGenericMimeType(providerContentType));
+				Assert.Equal("provider-generic.pdf", fileName);
+			}
+			finally
+			{
+				DeleteCreatedFile(sourcePath);
+			}
+		}
+
+		[Fact]
+		[Trait(Traits.FileProvider, Traits.FeatureSupport.Supported)]
+		public void GetContentType_GenericProviderMime_UsesPhysicalPathExtension()
+		{
+			var sourceFileName = "provider-generic";
+			var sourcePath = GetSourcePath(sourceFileName);
+
+			try
+			{
+				var uri = CreateContentUri(sourceFileName, Encoding.UTF8.GetBytes("provider generic"));
+				var providerContentType = Application.Context!.ContentResolver!.GetType(uri);
+				var physicalPath = Path.Combine(FileSystem.CacheDirectory, "resolved.pdf");
+				var contentType = FileSystemUtils.GetContentType(uri, physicalPath);
+
+				Assert.True(FileSystemUtils.IsGenericMimeType(providerContentType));
+				Assert.Equal(FileMimeTypes.Pdf, contentType);
+			}
+			finally
+			{
+				DeleteCreatedFile(sourcePath);
+			}
+		}
+
+		[Fact]
+		public void GetContentType_GenericMaterializedContentType_UsesPhysicalPathExtension()
+		{
+			var uri = AndroidUri.Parse("content://maui.test/generic")!;
+			var physicalPath = Path.Combine(FileSystem.CacheDirectory, "materialized.pdf");
+			var contentType = FileSystemUtils.GetContentType(
+				uri,
+				physicalPath,
+				materializedContentType: FileMimeTypes.OctetStream);
+
+			Assert.Equal(FileMimeTypes.Pdf, contentType);
+		}
+
 		[Fact]
 		[Trait(Traits.FileProvider, Traits.FeatureSupport.Supported)]
 		public void GetContentFileName_ExistingProviderExtension_IsPreservedWithoutForcedExtension()
