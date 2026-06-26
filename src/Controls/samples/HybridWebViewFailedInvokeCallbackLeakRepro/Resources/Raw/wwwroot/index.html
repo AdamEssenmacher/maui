@@ -1,0 +1,18 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>HybridWebView failed invoke callback leak repro</title>
+  <script src="_framework/hybridwebview.js"></script>
+  <script>
+    window.ThrowWithPayload = function (payload) {
+      const bytes = payload && payload.Buffer ? payload.Buffer.length : 0;
+      throw new Error(`Intentional repro failure for ${payload && payload.Tag}; bytes=${bytes}`);
+    };
+  </script>
+</head>
+<body>
+  <main>HybridWebView failed invoke callback leak repro</main>
+</body>
+</html>
