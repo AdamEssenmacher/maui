@@ -2,6 +2,7 @@
 
 using System;
 using System.IO;
+using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
@@ -9,8 +10,10 @@ using System.Threading.Tasks;
 using Android.Content;
 using Android.Graphics;
 using Android.Graphics.Drawables;
+using Android.Views;
 using Android.OS;
 using Android.Widget;
+using Google.Android.Material.BottomNavigation;
 using Microsoft.Maui;
 using Microsoft.Maui.ApplicationModel;
 using Microsoft.Maui.Controls;
@@ -26,6 +29,11 @@ public class MainPage : ContentPage
 {
 	const int Iterations = 80;
 	const int PayloadBytes = 1024 * 1024;
+
+	static readonly MethodInfo BottomNavigationSetMenuItemIconMethod =
+		typeof(Microsoft.Maui.Controls.Platform.BottomNavigationViewUtils)
+			.GetMethod("SetMenuItemIcon", BindingFlags.NonPublic | BindingFlags.Static)
+		?? throw new InvalidOperationException("BottomNavigationViewUtils.SetMenuItemIcon was not found.");
 
 	readonly Label _status;
 
@@ -70,7 +78,9 @@ public class MainPage : ContentPage
 				RunBackgroundControl(context),
 				RunCurrentBackgroundPath(context),
 				RunSeekBarControl(context),
-				RunCurrentSeekBarPath(context));
+				RunCurrentSeekBarPath(context),
+				RunBottomNavigationControl(context),
+				RunCurrentBottomNavigationPath(context));
 		});
 
 		ForceGc();
@@ -89,6 +99,44 @@ public class MainPage : ContentPage
 				.GetAwaiter()
 				.GetResult();
 			view.Background = null;
+		}
+
+		return ledger.ToResult();
+	}
+
+	static ScenarioResult RunBottomNavigationControl(Context context)
+	{
+		var ledger = new ScenarioLedger("control-bottomnav-icon-disposes-result");
+		var provider = new TrackingImageSourceServiceProvider(ledger);
+		var mauiContext = new TrackingMauiContext(context, provider);
+
+		for (var i = 0; i < Iterations; i++)
+		{
+			using var bottomView = new BottomNavigationView(context);
+			var menuItem = bottomView.Menu.Add(0, i + 1, 0, $"Item {i}")!;
+			UpdateBottomNavigationIconAndDisposeResultAsync(menuItem, new TrackingImageSource(i), mauiContext)
+				.GetAwaiter()
+				.GetResult();
+			menuItem.SetIcon(null);
+		}
+
+		return ledger.ToResult();
+	}
+
+	static ScenarioResult RunCurrentBottomNavigationPath(Context context)
+	{
+		var ledger = new ScenarioLedger("leak-current-bottomnav-icon-helper");
+		var provider = new TrackingImageSourceServiceProvider(ledger);
+		var mauiContext = new TrackingMauiContext(context, provider);
+
+		for (var i = 0; i < Iterations; i++)
+		{
+			using var bottomView = new BottomNavigationView(context);
+			var menuItem = bottomView.Menu.Add(0, i + 1, 0, $"Item {i}")!;
+			InvokeBottomNavigationSetMenuItemIconAsync(menuItem, new TrackingImageSource(i), mauiContext)
+				.GetAwaiter()
+				.GetResult();
+			menuItem.SetIcon(null);
 		}
 
 		return ledger.ToResult();
@@ -189,6 +237,36 @@ public class MainPage : ContentPage
 		}
 	}
 
+	static async Task UpdateBottomNavigationIconAndDisposeResultAsync(
+		IMenuItem menuItem,
+		ImageSource source,
+		IMauiContext context)
+	{
+		var services = context.Services;
+		var provider = (IImageSourceServiceProvider?)services.GetService(typeof(IImageSourceServiceProvider))
+			?? throw new InvalidOperationException("IImageSourceServiceProvider was not available.");
+		var imageSourceService = provider.GetRequiredImageSourceService(source);
+
+		var result = await imageSourceService.GetDrawableAsync(source, context.Context!);
+		try
+		{
+			menuItem.SetIcon(result?.Value);
+		}
+		finally
+		{
+			menuItem.SetIcon(null);
+			result?.Dispose();
+		}
+	}
+
+	static Task InvokeBottomNavigationSetMenuItemIconAsync(
+		IMenuItem menuItem,
+		ImageSource source,
+		IMauiContext context)
+	{
+		return (Task)BottomNavigationSetMenuItemIconMethod.Invoke(null, new object[] { menuItem, source, context })!;
+	}
+
 	static SeekBar CreateSeekBar(Context context)
 	{
 		return new SeekBar(context)
@@ -283,6 +361,38 @@ public class MainPage : ContentPage
 
 		public IImageSourceService? GetImageSourceService(Type imageSource) =>
 			imageSource == typeof(TrackingImageSource) ? _service : null;
+	}
+
+	sealed class TrackingMauiContext : IMauiContext
+	{
+		readonly TrackingServiceProvider _services;
+
+		public TrackingMauiContext(Context context, IImageSourceServiceProvider imageProvider)
+		{
+			Context = context;
+			_services = new TrackingServiceProvider(imageProvider);
+		}
+
+		public IServiceProvider Services => _services;
+
+		public IMauiHandlersFactory Handlers => throw new NotSupportedException();
+
+		public Context? Context { get; }
+	}
+
+	sealed class TrackingServiceProvider : IServiceProvider
+	{
+		readonly IImageSourceServiceProvider _imageProvider;
+
+		public TrackingServiceProvider(IImageSourceServiceProvider imageProvider)
+		{
+			_imageProvider = imageProvider;
+		}
+
+		public object? GetService(Type serviceType) =>
+			serviceType == typeof(IImageSourceServiceProvider)
+				? _imageProvider
+				: null;
 	}
 
 	sealed class TrackingImageSourceService : IImageSourceService<TrackingImageSource>
@@ -420,13 +530,17 @@ public class MainPage : ContentPage
 		ScenarioResult BackgroundControl,
 		ScenarioResult BackgroundLeak,
 		ScenarioResult SeekBarControl,
-		ScenarioResult SeekBarLeak)
+		ScenarioResult SeekBarLeak,
+		ScenarioResult BottomNavigationControl,
+		ScenarioResult BottomNavigationLeak)
 	{
 		public bool IsProven =>
 			IsCleanControl(BackgroundControl) &&
 			IsCleanControl(SeekBarControl) &&
+			IsCleanControl(BottomNavigationControl) &&
 			IsLeakingCurrentPath(BackgroundLeak) &&
-			IsLeakingCurrentPath(SeekBarLeak);
+			IsLeakingCurrentPath(SeekBarLeak) &&
+			IsLeakingCurrentPath(BottomNavigationLeak);
 
 		static bool IsCleanControl(ScenarioResult result) =>
 			result.AllocatedCount == Iterations &&
@@ -446,6 +560,8 @@ public class MainPage : ContentPage
 			builder.AppendLine(BackgroundLeak.ToString());
 			builder.AppendLine(SeekBarControl.ToString());
 			builder.AppendLine(SeekBarLeak.ToString());
+			builder.AppendLine(BottomNavigationControl.ToString());
+			builder.AppendLine(BottomNavigationLeak.ToString());
 			builder.Append("payload-bytes-per-result=");
 			builder.Append(PayloadBytes);
 			builder.AppendLine();

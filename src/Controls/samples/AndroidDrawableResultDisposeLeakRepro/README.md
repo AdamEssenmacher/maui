@@ -4,11 +4,13 @@ Android repro for direct image-service helpers that await `GetDrawableAsync`, us
 `IImageSourceServiceResult<Drawable>.Value`, and drop the result without calling
 `Dispose()`.
 
-This covers the public Android background-image helper and the public `SeekBar`
-slider thumb-image helper:
+This covers the public Android background-image helper, the public `SeekBar`
+slider thumb-image helper, and the Shell/TabbedPage bottom-navigation icon
+helper:
 
 - `Android.Views.View.UpdateBackgroundImageSourceAsync`
 - `SeekBar.UpdateThumbImageSourceAsync`
+- `BottomNavigationViewUtils.SetMenuItemIcon`
 
 Each custom image-source result owns a 1 MiB native-like unmanaged payload that
 is released only by the result's dispose callback.
@@ -23,6 +25,8 @@ control-background-disposes-result: results=80/80, allocated=80.0 MiB, disposed=
 leak-current-android-background-helper: results=80/0, allocated=80.0 MiB, disposed=0 B, leaked=80.0 MiB
 control-seekbar-thumb-disposes-result: results=80/80, allocated=80.0 MiB, disposed=80.0 MiB, leaked=0 B
 leak-current-android-seekbar-thumb-helper: results=80/0, allocated=80.0 MiB, disposed=0 B, leaked=80.0 MiB
+control-bottomnav-icon-disposes-result: results=80/80, allocated=80.0 MiB, disposed=80.0 MiB, leaked=0 B
+leak-current-bottomnav-icon-helper: results=80/0, allocated=80.0 MiB, disposed=0 B, leaked=80.0 MiB
 payload-bytes-per-result=1048576
 payload-bytes-per-leak-path=83886080
 ```
