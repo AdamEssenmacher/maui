@@ -19,6 +19,7 @@ using Microsoft.Maui.ApplicationModel;
 using Microsoft.Maui.Controls;
 using Microsoft.Maui.Platform;
 using Microsoft.Maui.Storage;
+using AToolbar = AndroidX.AppCompat.Widget.Toolbar;
 using AView = Android.Views.View;
 using Environment = System.Environment;
 using MauiSlider = Microsoft.Maui.Controls.Slider;
@@ -80,7 +81,9 @@ public class MainPage : ContentPage
 				RunSeekBarControl(context),
 				RunCurrentSeekBarPath(context),
 				RunBottomNavigationControl(context),
-				RunCurrentBottomNavigationPath(context));
+				RunCurrentBottomNavigationPath(context),
+				RunShellToolbarIconControl(context),
+				RunCurrentShellToolbarIconPath(context));
 		});
 
 		ForceGc();
@@ -137,6 +140,45 @@ public class MainPage : ContentPage
 				.GetAwaiter()
 				.GetResult();
 			menuItem.SetIcon(null);
+		}
+
+		return ledger.ToResult();
+	}
+
+	static ScenarioResult RunShellToolbarIconControl(Context context)
+	{
+		var ledger = new ScenarioLedger("control-shell-toolbar-icon-disposes-result");
+		var provider = new TrackingImageSourceServiceProvider(ledger);
+		var mauiContext = new TrackingMauiContext(context, provider);
+
+		for (var i = 0; i < Iterations; i++)
+		{
+			using var toolbar = new AToolbar(context);
+			UpdateShellToolbarIconAndDisposeResultAsync(toolbar, new TrackingImageSource(i), mauiContext)
+				.GetAwaiter()
+				.GetResult();
+			toolbar.NavigationIcon = null;
+		}
+
+		return ledger.ToResult();
+	}
+
+	static ScenarioResult RunCurrentShellToolbarIconPath(Context context)
+	{
+		var ledger = new ScenarioLedger("leak-current-shell-toolbar-getplatformimage-pattern");
+		var provider = new TrackingImageSourceServiceProvider(ledger);
+		var mauiContext = new TrackingMauiContext(context, provider);
+
+		for (var i = 0; i < Iterations; i++)
+		{
+			using var toolbar = new AToolbar(context);
+			var customIcon = new TrackingImageSource(i).GetPlatformImageAsync(mauiContext)
+				.GetAwaiter()
+				.GetResult()
+				?.Value;
+
+			toolbar.NavigationIcon = customIcon;
+			toolbar.NavigationIcon = null;
 		}
 
 		return ledger.ToResult();
@@ -255,6 +297,23 @@ public class MainPage : ContentPage
 		finally
 		{
 			menuItem.SetIcon(null);
+			result?.Dispose();
+		}
+	}
+
+	static async Task UpdateShellToolbarIconAndDisposeResultAsync(
+		AToolbar toolbar,
+		ImageSource source,
+		IMauiContext context)
+	{
+		var result = await source.GetPlatformImageAsync(context);
+		try
+		{
+			toolbar.NavigationIcon = result?.Value;
+		}
+		finally
+		{
+			toolbar.NavigationIcon = null;
 			result?.Dispose();
 		}
 	}
@@ -532,15 +591,19 @@ public class MainPage : ContentPage
 		ScenarioResult SeekBarControl,
 		ScenarioResult SeekBarLeak,
 		ScenarioResult BottomNavigationControl,
-		ScenarioResult BottomNavigationLeak)
+		ScenarioResult BottomNavigationLeak,
+		ScenarioResult ShellToolbarIconControl,
+		ScenarioResult ShellToolbarIconLeak)
 	{
 		public bool IsProven =>
 			IsCleanControl(BackgroundControl) &&
 			IsCleanControl(SeekBarControl) &&
 			IsCleanControl(BottomNavigationControl) &&
+			IsCleanControl(ShellToolbarIconControl) &&
 			IsLeakingCurrentPath(BackgroundLeak) &&
 			IsLeakingCurrentPath(SeekBarLeak) &&
-			IsLeakingCurrentPath(BottomNavigationLeak);
+			IsLeakingCurrentPath(BottomNavigationLeak) &&
+			IsLeakingCurrentPath(ShellToolbarIconLeak);
 
 		static bool IsCleanControl(ScenarioResult result) =>
 			result.AllocatedCount == Iterations &&
@@ -562,6 +625,8 @@ public class MainPage : ContentPage
 			builder.AppendLine(SeekBarLeak.ToString());
 			builder.AppendLine(BottomNavigationControl.ToString());
 			builder.AppendLine(BottomNavigationLeak.ToString());
+			builder.AppendLine(ShellToolbarIconControl.ToString());
+			builder.AppendLine(ShellToolbarIconLeak.ToString());
 			builder.Append("payload-bytes-per-result=");
 			builder.Append(PayloadBytes);
 			builder.AppendLine();
