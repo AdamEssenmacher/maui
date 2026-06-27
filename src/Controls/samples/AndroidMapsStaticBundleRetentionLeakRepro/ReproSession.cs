@@ -5,6 +5,7 @@ using Android.App;
 using Android.OS;
 using Android.Runtime;
 using Microsoft.Maui.Controls;
+using Microsoft.Maui.Maps.Handlers;
 using MapsFormsMaps = Microsoft.Maui.Controls.FormsMaps;
 
 namespace AndroidMapsStaticBundleRetentionLeakRepro;
@@ -16,14 +17,17 @@ public sealed record RunStats(
 	int AlivePayloads,
 	int AlivePayloadByteArrays,
 	long RetainedPayloadBytes,
-	string? StaticBundleType,
-	int StaticBundleKeyCount);
+	string? CompatibilityStaticBundleType,
+	int CompatibilityStaticBundleKeyCount,
+	string? CoreStaticBundleType,
+	int CoreStaticBundleKeyCount);
 
 public sealed record ReproReport(
 	int PayloadCount,
 	int PayloadBytes,
 	RunStats Control,
-	RunStats Current,
+	RunStats CompatibilityCurrent,
+	RunStats CoreCurrent,
 	long ManagedHeapBaseline,
 	long ManagedHeapFinal)
 {
@@ -31,11 +35,16 @@ public sealed record ReproReport(
 		Control.AliveBundles == 0 &&
 		Control.AlivePayloads == 0 &&
 		Control.AlivePayloadByteArrays == 0 &&
-		Current.AliveBundles == 1 &&
-		Current.AlivePayloads == PayloadCount &&
-		Current.AlivePayloadByteArrays == PayloadCount &&
-		Current.StaticBundleType == typeof(Bundle).FullName &&
-		Current.StaticBundleKeyCount == PayloadCount;
+		CompatibilityCurrent.AliveBundles == 1 &&
+		CompatibilityCurrent.AlivePayloads == PayloadCount &&
+		CompatibilityCurrent.AlivePayloadByteArrays == PayloadCount &&
+		CompatibilityCurrent.CompatibilityStaticBundleType == typeof(Bundle).FullName &&
+		CompatibilityCurrent.CompatibilityStaticBundleKeyCount == PayloadCount &&
+		CoreCurrent.AliveBundles == 1 &&
+		CoreCurrent.AlivePayloads == PayloadCount &&
+		CoreCurrent.AlivePayloadByteArrays == PayloadCount &&
+		CoreCurrent.CoreStaticBundleType == typeof(Bundle).FullName &&
+		CoreCurrent.CoreStaticBundleKeyCount == PayloadCount;
 
 	public string ToText()
 	{
@@ -48,7 +57,9 @@ public sealed record ReproReport(
 			string.Empty,
 			Format(Control),
 			string.Empty,
-			Format(Current),
+			Format(CompatibilityCurrent),
+			string.Empty,
+			Format(CoreCurrent),
 			string.Empty,
 			$"Managed heap baseline: {FormatBytes(ManagedHeapBaseline)}",
 			$"Managed heap final: {FormatBytes(ManagedHeapFinal)}",
@@ -60,8 +71,10 @@ public sealed record ReproReport(
 		var payloadBudget = (long)PayloadBytes * PayloadCount;
 		return string.Join(System.Environment.NewLine,
 			$"Run: {stats.Name}",
-			$"  static MapRenderer.s_bundle: {stats.StaticBundleType ?? "<null>"}",
-			$"  static Bundle key count: {stats.StaticBundleKeyCount}",
+			$"  compatibility MapRenderer.s_bundle: {stats.CompatibilityStaticBundleType ?? "<null>"}",
+			$"  compatibility Bundle key count: {stats.CompatibilityStaticBundleKeyCount}",
+			$"  core MapHandler.s_bundle: {stats.CoreStaticBundleType ?? "<null>"}",
+			$"  core Bundle key count: {stats.CoreStaticBundleKeyCount}",
 			$"  launch Bundles alive after full GC: {stats.AliveBundles}/1",
 			$"  saved-state payload objects alive after full GC: {stats.AlivePayloads}/{stats.PayloadCount}",
 			$"  saved-state payload byte arrays alive after full GC: {stats.AlivePayloadByteArrays}/{stats.PayloadCount}",
@@ -89,48 +102,54 @@ internal static class ReproSession
 	{
 		await Task.Yield();
 
-		MapsReflection.ResetFormsMapsState();
+		MapsReflection.ResetMapsState();
 		ForceFullGc();
 		var baseline = GC.GetTotalMemory(forceFullCollection: true);
 
 		var control = await RunScenarioAsync(
 			activity,
-			"control: clear MapRenderer.s_bundle after FormsMaps.Init",
-			clearStaticBundleAfterInit: true);
+			"control: clear both Android Maps static Bundle roots after assignment",
+			RootMode.ClearBothStaticBundleRoots);
 
-		var current = await RunScenarioAsync(
+		var compatibilityCurrent = await RunScenarioAsync(
 			activity,
-			"current: FormsMaps.Init stores launch Bundle in static MapRenderer.s_bundle",
-			clearStaticBundleAfterInit: false);
+			"current: FormsMaps.Init stores launch Bundle in compatibility MapRenderer.s_bundle",
+			RootMode.CompatibilityFormsMapsInit);
+
+		var coreCurrent = await RunScenarioAsync(
+			activity,
+			"current: UseMauiMaps OnCreate stores launch Bundle in core MapHandler.s_bundle",
+			RootMode.CoreMapHandlerBundle);
 
 		ForceFullGc();
 		var final = GC.GetTotalMemory(forceFullCollection: true);
 
-		return new ReproReport(PayloadCount, PayloadBytes, control, current, baseline, final);
+		return new ReproReport(PayloadCount, PayloadBytes, control, compatibilityCurrent, coreCurrent, baseline, final);
 	}
 
-	static async Task<RunStats> RunScenarioAsync(Activity activity, string name, bool clearStaticBundleAfterInit)
+	static async Task<RunStats> RunScenarioAsync(Activity activity, string name, RootMode mode)
 	{
-		MapsReflection.ResetFormsMapsState();
+		MapsReflection.ResetMapsState();
 		ForceFullGc();
 
 		var payloadRefs = new List<WeakReference<SavedStatePayload>>(PayloadCount);
 		var payloadByteRefs = new List<WeakReference<byte[]>>(PayloadCount);
-		var bundleRef = CreateAndInitializeMaps(activity, payloadRefs, payloadByteRefs);
+		var bundleRef = CreateAndInitializeMaps(activity, mode, payloadRefs, payloadByteRefs);
 
-		if (clearStaticBundleAfterInit)
-			MapsReflection.ResetFormsMapsState();
+		if (mode == RootMode.ClearBothStaticBundleRoots)
+			MapsReflection.ResetMapsState();
 
 		await Task.Yield();
 		ForceFullGc();
 
-		var staticBundle = MapsReflection.GetStaticBundle();
+		var compatibilityStaticBundle = MapsReflection.GetCompatibilityStaticBundle();
+		var coreStaticBundle = MapsReflection.GetCoreStaticBundle();
 		var aliveBundles = bundleRef.TryGetTarget(out _) ? 1 : 0;
 		var alivePayloads = payloadRefs.Count(static wr => wr.TryGetTarget(out _));
 		var alivePayloadByteArrays = payloadByteRefs.Count(static wr => wr.TryGetTarget(out _));
 
-		if (clearStaticBundleAfterInit)
-			MapsReflection.ResetFormsMapsState();
+		if (mode == RootMode.ClearBothStaticBundleRoots)
+			MapsReflection.ResetMapsState();
 
 		return new RunStats(
 			name,
@@ -139,13 +158,16 @@ internal static class ReproSession
 			alivePayloads,
 			alivePayloadByteArrays,
 			(long)alivePayloadByteArrays * PayloadBytes,
-			staticBundle?.GetType().FullName,
-			staticBundle?.KeySet()?.Count ?? 0);
+			compatibilityStaticBundle?.GetType().FullName,
+			compatibilityStaticBundle?.KeySet()?.Count ?? 0,
+			coreStaticBundle?.GetType().FullName,
+			coreStaticBundle?.KeySet()?.Count ?? 0);
 	}
 
 	[MethodImpl(MethodImplOptions.NoInlining)]
 	static WeakReference<Bundle> CreateAndInitializeMaps(
 		Activity activity,
+		RootMode mode,
 		List<WeakReference<SavedStatePayload>> payloadRefs,
 		List<WeakReference<byte[]>> payloadByteRefs)
 	{
@@ -158,7 +180,12 @@ internal static class ReproSession
 			bundle.PutParcelable($"saved-state-payload-{i:00}", payload);
 		}
 
-		MapsFormsMaps.Init(activity, bundle);
+		if (mode is RootMode.ClearBothStaticBundleRoots or RootMode.CompatibilityFormsMapsInit)
+			MapsFormsMaps.Init(activity, bundle);
+
+		if (mode is RootMode.ClearBothStaticBundleRoots or RootMode.CoreMapHandlerBundle)
+			MapHandler.Bundle = bundle;
+
 		return new WeakReference<Bundle>(bundle);
 	}
 
@@ -171,30 +198,47 @@ internal static class ReproSession
 			GC.Collect();
 		}
 	}
+
+	enum RootMode
+	{
+		ClearBothStaticBundleRoots,
+		CompatibilityFormsMapsInit,
+		CoreMapHandlerBundle
+	}
 }
 
 internal static class MapsReflection
 {
-	static readonly Type MapRendererType =
+	static readonly Type CompatibilityMapRendererType =
 		typeof(MapsFormsMaps).Assembly.GetType("Microsoft.Maui.Controls.Compatibility.Maps.Android.MapRenderer", throwOnError: true)
 		?? throw new TypeLoadException("Microsoft.Maui.Controls.Compatibility.Maps.Android.MapRenderer");
 
-	static readonly FieldInfo StaticBundleField =
-		MapRendererType.GetField("s_bundle", BindingFlags.Static | BindingFlags.NonPublic)
-		?? throw new MissingFieldException(MapRendererType.FullName, "s_bundle");
+	static readonly FieldInfo CompatibilityStaticBundleField =
+		CompatibilityMapRendererType.GetField("s_bundle", BindingFlags.Static | BindingFlags.NonPublic)
+		?? throw new MissingFieldException(CompatibilityMapRendererType.FullName, "s_bundle");
+
+	static readonly FieldInfo CoreStaticBundleField =
+		typeof(MapHandler).GetField("s_bundle", BindingFlags.Static | BindingFlags.NonPublic)
+		?? throw new MissingFieldException(typeof(MapHandler).FullName, "s_bundle");
 
 	static readonly FieldInfo FormsMapsInitializedField =
 		typeof(MapsFormsMaps).GetField("<IsInitialized>k__BackingField", BindingFlags.Static | BindingFlags.NonPublic)
 		?? throw new MissingFieldException(typeof(MapsFormsMaps).FullName, "<IsInitialized>k__BackingField");
 
-	public static Bundle? GetStaticBundle()
+	public static Bundle? GetCompatibilityStaticBundle()
 	{
-		return StaticBundleField.GetValue(null) as Bundle;
+		return CompatibilityStaticBundleField.GetValue(null) as Bundle;
 	}
 
-	public static void ResetFormsMapsState()
+	public static Bundle? GetCoreStaticBundle()
 	{
-		StaticBundleField.SetValue(null, null);
+		return CoreStaticBundleField.GetValue(null) as Bundle;
+	}
+
+	public static void ResetMapsState()
+	{
+		CompatibilityStaticBundleField.SetValue(null, null);
+		CoreStaticBundleField.SetValue(null, null);
 		FormsMapsInitializedField.SetValue(null, false);
 	}
 }
