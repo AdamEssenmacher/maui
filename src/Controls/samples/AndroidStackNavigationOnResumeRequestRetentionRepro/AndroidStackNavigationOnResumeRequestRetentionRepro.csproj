@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net$(_MauiDotNetVersion)-android</TargetFrameworks>
+    <OutputType>Exe</OutputType>
+    <ApplicationTitle>AndroidStackNavigationOnResumeRequestRetentionLeakRepro</ApplicationTitle>
+    <ApplicationId>com.microsoft.maui.androidstacknavigationonresumerequestretentionrepro</ApplicationId>
+    <ApplicationVersion>1</ApplicationVersion>
+    <IsPackable>false</IsPackable>
+    <SupportedOSPlatformVersion>21.0</SupportedOSPlatformVersion>
+    <DisableMauiAnalyzers>true</DisableMauiAnalyzers>
+    <EnableDefaultXamlItems>false</EnableDefaultXamlItems>
+    <EnableDefaultCssItems>false</EnableDefaultCssItems>
+    <NoWarn>$(NoWarn);0618</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup Condition=" '$(UseMaui)' != 'true' ">
+    <ProjectReference Include="..\..\..\Core\src\Core.csproj" />
+  </ItemGroup>
+
+  <Import Project="$(MauiSrcDirectory)Maui.InTree.props" Condition=" '$(UseMaui)' != 'true' " />
+
+</Project>
