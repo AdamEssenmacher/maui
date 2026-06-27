@@ -13,23 +13,32 @@ public sealed record RunStats(
 	int AlivePayloads,
 	long RetainedPayloadBytes,
 	string? CurrentServiceType,
-	string? CurrentServiceActivityType);
+	string? CurrentServiceActivityType,
+	bool HasDefaultHingeSensor,
+	string? HingeSensorServiceType,
+	string? HingeSensorServiceActivityType);
 
 public sealed record ReproReport(
 	int Attempts,
 	int PayloadBytes,
 	RunStats Control,
-	RunStats Current,
+	RunStats DualScreenInfoRoot,
+	RunStats HingeSensorRoot,
 	long ManagedHeapBaseline,
 	long ManagedHeapFinal)
 {
 	public bool LeakProved =>
 		Control.AliveActivities == 0 &&
 		Control.AlivePayloads == 0 &&
-		Current.AliveActivities == 1 &&
-		Current.AlivePayloads == 1 &&
-		Current.CurrentServiceType == FoldableReflection.FoldableServiceType.FullName &&
-		Current.CurrentServiceActivityType == typeof(ProbeActivity).FullName;
+		DualScreenInfoRoot.AliveActivities == 1 &&
+		DualScreenInfoRoot.AlivePayloads == 1 &&
+		DualScreenInfoRoot.CurrentServiceType == FoldableReflection.FoldableServiceType.FullName &&
+		DualScreenInfoRoot.CurrentServiceActivityType == typeof(ProbeActivity).FullName &&
+		HingeSensorRoot.AliveActivities == 1 &&
+		HingeSensorRoot.AlivePayloads == 1 &&
+		HingeSensorRoot.HasDefaultHingeSensor &&
+		HingeSensorRoot.HingeSensorServiceType == FoldableReflection.FoldableServiceType.FullName &&
+		HingeSensorRoot.HingeSensorServiceActivityType == typeof(ProbeActivity).FullName;
 
 	public string ToText()
 	{
@@ -41,7 +50,9 @@ public sealed record ReproReport(
 			string.Empty,
 			Format(Control),
 			string.Empty,
-			Format(Current),
+			Format(DualScreenInfoRoot),
+			string.Empty,
+			Format(HingeSensorRoot),
 			string.Empty,
 			$"Managed heap baseline: {FormatBytes(ManagedHeapBaseline)}",
 			$"Managed heap final: {FormatBytes(ManagedHeapFinal)}",
@@ -54,7 +65,10 @@ public sealed record ReproReport(
 		return string.Join(Environment.NewLine,
 			$"Run: {stats.Name}",
 			$"  DualScreenInfo.Current service: {stats.CurrentServiceType ?? "<null>"}",
-			$"  service _mainActivity: {stats.CurrentServiceActivityType ?? "<null>"}",
+			$"  DualScreenInfo service _mainActivity: {stats.CurrentServiceActivityType ?? "<null>"}",
+			$"  DefaultHingeSensor set: {stats.HasDefaultHingeSensor}",
+			$"  DefaultHingeSensor event service: {stats.HingeSensorServiceType ?? "<null>"}",
+			$"  DefaultHingeSensor service _mainActivity: {stats.HingeSensorServiceActivityType ?? "<null>"}",
 			$"  destroyed activity instances alive after full GC: {stats.AliveActivities}/{stats.Attempts}",
 			$"  activity payloads alive after full GC: {stats.AlivePayloads}/{stats.Attempts}",
 			$"  retained payload bytes: {FormatBytes(stats.RetainedPayloadBytes)} ({stats.RetainedPayloadBytes * 100.0 / payloadBudget:0.0}%)");
@@ -81,27 +95,31 @@ internal static class ReproSession
 	{
 		await Task.Yield();
 
-		FoldableReflection.ClearCurrentFoldableService();
+		FoldableReflection.ClearStaticRoots();
 		ForceFullGc();
 		var baseline = GC.GetTotalMemory(forceFullCollection: true);
 
 		var control = await RunScenarioAsync(
-			"control: clear DualScreenInfo.Current foldable service after Activity teardown",
-			clearStaticServiceAfterInit: true);
+			"control: clear DualScreenInfo and DefaultHingeSensor roots after Activity teardown",
+			RootMode.ClearBothStaticRoots);
 
-		var current = await RunScenarioAsync(
+		var dualScreenInfoRoot = await RunScenarioAsync(
 			"current: DualScreenInfo.Current keeps last FoldableService with _mainActivity",
-			clearStaticServiceAfterInit: false);
+			RootMode.DualScreenInfoCurrent);
+
+		var hingeSensorRoot = await RunScenarioAsync(
+			"current: static DefaultHingeSensor event keeps last FoldableService with _mainActivity",
+			RootMode.DefaultHingeSensorEvent);
 
 		ForceFullGc();
 		var final = GC.GetTotalMemory(forceFullCollection: true);
 
-		return new ReproReport(Attempts, PayloadBytes, control, current, baseline, final);
+		return new ReproReport(Attempts, PayloadBytes, control, dualScreenInfoRoot, hingeSensorRoot, baseline, final);
 	}
 
-	static async Task<RunStats> RunScenarioAsync(string name, bool clearStaticServiceAfterInit)
+	static async Task<RunStats> RunScenarioAsync(string name, RootMode mode)
 	{
-		FoldableReflection.ClearCurrentFoldableService();
+		FoldableReflection.ClearStaticRoots();
 		ForceFullGc();
 
 		var activityRefs = new List<WeakReference<ProbeActivity>>(Attempts);
@@ -110,7 +128,7 @@ internal static class ReproSession
 		for (var i = 0; i < Attempts; i++)
 		{
 			CreateDestroyedActivityService(
-				clearStaticServiceAfterInit,
+				mode,
 				activityRefs,
 				payloadRefs,
 				i);
@@ -124,11 +142,13 @@ internal static class ReproSession
 
 		var aliveActivities = activityRefs.Count(static wr => wr.TryGetTarget(out _));
 		var alivePayloads = payloadRefs.Count(static wr => wr.TryGetTarget(out _));
-		var service = FoldableReflection.GetCurrentFoldableService();
-		var serviceActivityType = FoldableReflection.GetServiceMainActivity(service)?.GetType().FullName;
+		var currentService = FoldableReflection.GetCurrentFoldableService();
+		var hingeSensorService = FoldableReflection.GetDefaultHingeSensorService();
+		var currentServiceActivityType = FoldableReflection.GetServiceMainActivity(currentService)?.GetType().FullName;
+		var hingeSensorServiceActivityType = FoldableReflection.GetServiceMainActivity(hingeSensorService)?.GetType().FullName;
 
-		if (clearStaticServiceAfterInit)
-			FoldableReflection.ClearCurrentFoldableService();
+		if (mode == RootMode.ClearBothStaticRoots)
+			FoldableReflection.ClearStaticRoots();
 
 		return new RunStats(
 			name,
@@ -136,13 +156,16 @@ internal static class ReproSession
 			aliveActivities,
 			alivePayloads,
 			(long)alivePayloads * PayloadBytes,
-			service?.GetType().FullName,
-			serviceActivityType);
+			currentService?.GetType().FullName,
+			currentServiceActivityType,
+			FoldableReflection.GetDefaultHingeSensor() != null,
+			hingeSensorService?.GetType().FullName,
+			hingeSensorServiceActivityType);
 	}
 
 	[MethodImpl(MethodImplOptions.NoInlining)]
 	static void CreateDestroyedActivityService(
-		bool clearStaticServiceAfterInit,
+		RootMode mode,
 		List<WeakReference<ProbeActivity>> activityRefs,
 		List<WeakReference<ActivityPayload>> payloadRefs,
 		int attempt)
@@ -152,13 +175,18 @@ internal static class ReproSession
 		var service = FoldableReflection.CreateFoldableService();
 
 		FoldableReflection.SetServiceMainActivity(service, activity);
-		FoldableReflection.SetCurrentFoldableService(service);
+
+		if (mode is RootMode.ClearBothStaticRoots or RootMode.DualScreenInfoCurrent)
+			FoldableReflection.SetCurrentFoldableService(service);
+
+		if (mode is RootMode.ClearBothStaticRoots or RootMode.DefaultHingeSensorEvent)
+			FoldableReflection.SetDefaultHingeSensorRoot(service);
 
 		activityRefs.Add(new WeakReference<ProbeActivity>(activity));
 		payloadRefs.Add(new WeakReference<ActivityPayload>(payload));
 
-		if (clearStaticServiceAfterInit)
-			FoldableReflection.ClearCurrentFoldableService();
+		if (mode == RootMode.ClearBothStaticRoots)
+			FoldableReflection.ClearStaticRoots();
 
 		activity.Dispose();
 	}
@@ -172,6 +200,13 @@ internal static class ReproSession
 			GC.Collect();
 		}
 	}
+
+	enum RootMode
+	{
+		ClearBothStaticRoots,
+		DualScreenInfoCurrent,
+		DefaultHingeSensorEvent
+	}
 }
 
 internal static class FoldableReflection
@@ -180,9 +215,37 @@ internal static class FoldableReflection
 		typeof(DualScreenInfo).Assembly.GetType("Microsoft.Maui.Foldable.FoldableService", throwOnError: true)
 		?? throw new TypeLoadException("Microsoft.Maui.Foldable.FoldableService");
 
+	static readonly Type HingeSensorType =
+		typeof(DualScreenInfo).Assembly.GetType("Microsoft.Maui.Foldable.HingeSensor", throwOnError: true)
+		?? throw new TypeLoadException("Microsoft.Maui.Foldable.HingeSensor");
+
 	static readonly FieldInfo ServiceMainActivityField =
 		FoldableServiceType.GetField("_mainActivity", BindingFlags.Instance | BindingFlags.NonPublic)
 		?? throw new MissingFieldException(FoldableServiceType.FullName, "_mainActivity");
+
+	static readonly FieldInfo ServiceDefaultHingeSensorField =
+		FoldableServiceType.GetField("DefaultHingeSensor", BindingFlags.Static | BindingFlags.NonPublic)
+		?? throw new MissingFieldException(FoldableServiceType.FullName, "DefaultHingeSensor");
+
+	static readonly FieldInfo ServiceHingeAngleChangedField =
+		FoldableServiceType.GetField("_hingeAngleChanged", BindingFlags.Static | BindingFlags.NonPublic)
+		?? throw new MissingFieldException(FoldableServiceType.FullName, "_hingeAngleChanged");
+
+	static readonly FieldInfo ServiceSubscriberCountField =
+		FoldableServiceType.GetField("subscriberCount", BindingFlags.Static | BindingFlags.NonPublic)
+		?? throw new MissingFieldException(FoldableServiceType.FullName, "subscriberCount");
+
+	static readonly MethodInfo ServiceDefaultHingeSensorOnSensorChanged =
+		FoldableServiceType.GetMethod("DefaultHingeSensorOnSensorChanged", BindingFlags.Instance | BindingFlags.NonPublic)
+		?? throw new MissingMethodException(FoldableServiceType.FullName, "DefaultHingeSensorOnSensorChanged");
+
+	static readonly EventInfo HingeSensorOnSensorChangedEvent =
+		HingeSensorType.GetEvent("OnSensorChanged", BindingFlags.Instance | BindingFlags.Public)
+		?? throw new MissingMemberException(HingeSensorType.FullName, "OnSensorChanged");
+
+	static readonly FieldInfo HingeSensorOnSensorChangedField =
+		HingeSensorType.GetField("OnSensorChanged", BindingFlags.Instance | BindingFlags.NonPublic)
+		?? throw new MissingFieldException(HingeSensorType.FullName, "OnSensorChanged");
 
 	static readonly MethodInfo DualScreenInfoSetFoldableService =
 		typeof(DualScreenInfo).GetMethod("SetFoldableService", BindingFlags.Instance | BindingFlags.NonPublic)
@@ -218,9 +281,46 @@ internal static class FoldableReflection
 		return DualScreenInfoServiceField.GetValue(DualScreenInfo.Current);
 	}
 
-	public static void ClearCurrentFoldableService()
+	public static void SetDefaultHingeSensorRoot(object service)
+	{
+		var context = Application.Context
+			?? throw new InvalidOperationException("No Android application context was available.");
+
+		var sensor = Activator.CreateInstance(HingeSensorType, context)
+			?? throw new InvalidOperationException("Could not create HingeSensor.");
+
+		var handlerType = HingeSensorOnSensorChangedEvent.EventHandlerType
+			?? throw new InvalidOperationException("Could not determine HingeSensor event handler type.");
+
+		var handler = Delegate.CreateDelegate(handlerType, service, ServiceDefaultHingeSensorOnSensorChanged);
+		HingeSensorOnSensorChangedEvent.AddEventHandler(sensor, handler);
+		ServiceDefaultHingeSensorField.SetValue(null, sensor);
+	}
+
+	public static object? GetDefaultHingeSensor()
+	{
+		return ServiceDefaultHingeSensorField.GetValue(null);
+	}
+
+	public static object? GetDefaultHingeSensorService()
+	{
+		var sensor = GetDefaultHingeSensor();
+		if (sensor == null)
+			return null;
+
+		var handler = HingeSensorOnSensorChangedField.GetValue(sensor) as Delegate;
+		return handler?
+			.GetInvocationList()
+			.Select(static d => d.Target)
+			.FirstOrDefault(target => target?.GetType() == FoldableServiceType);
+	}
+
+	public static void ClearStaticRoots()
 	{
 		SetCurrentFoldableService(null);
+		ServiceDefaultHingeSensorField.SetValue(null, null);
+		ServiceHingeAngleChangedField.SetValue(null, null);
+		ServiceSubscriberCountField.SetValue(null, 0);
 	}
 }
 
