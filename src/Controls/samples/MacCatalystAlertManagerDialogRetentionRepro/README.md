@@ -1,8 +1,8 @@
 # Mac Catalyst AlertManager Dialog Retention Repro
 
-This Mac Catalyst repro mirrors the iOS/Mac Catalyst `AlertManager.AlertRequestHelper` construction paths for `DisplayAlert` and `DisplayPrompt`. Those paths create `UIAlertController` instances with `UIAlertAction` callbacks and prompt text-field delegates that capture the internal alert argument objects.
+This Mac Catalyst repro mirrors the iOS/Mac Catalyst `AlertManager.AlertRequestHelper` construction paths for `DisplayAlert`, `DisplayActionSheet`, and `DisplayPrompt`. Those paths create `UIAlertController` instances with `UIAlertAction` callbacks and prompt text-field delegates that capture the internal alert argument objects and generated action labels.
 
-The harness constructs the same native alert/action graphs without presenting modal UI, completes the argument tasks, then keeps the native alert/action peers alive. The control run keeps the same retained native alert peers but clears the payload strings from the argument objects and native text fields. The current MAUI run leaves the payload strings assigned.
+The harness constructs the same native alert/action graphs without presenting modal UI, completes the argument tasks, then keeps the native alert/action peers alive. The control run keeps retained native alert peers alive with short action-sheet labels and clears alert/prompt payload strings from the argument objects and native text fields. The current MAUI run leaves the payload strings assigned.
 
 Run:
 

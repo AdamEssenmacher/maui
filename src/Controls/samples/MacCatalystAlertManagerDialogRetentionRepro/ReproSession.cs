@@ -13,12 +13,14 @@ namespace MacCatalystAlertManagerDialogRetentionRepro;
 internal static class ReproSession
 {
 	internal const int CyclesPerDialogKind = 96;
+	internal const int ActionSheetItems = 8;
 	internal const int PayloadCharsPerSlot = 64 * 1024;
 	const int PayloadBytesPerSlot = PayloadCharsPerSlot * sizeof(char);
 	const string PayloadPrefix = "maccatalyst-alertmanager-dialog-";
 
 	static readonly FieldInfo AlertTitleField = GetBackingField(typeof(AlertArguments), nameof(AlertArguments.Title));
 	static readonly FieldInfo AlertMessageField = GetBackingField(typeof(AlertArguments), nameof(AlertArguments.Message));
+	static readonly FieldInfo ActionSheetTitleField = GetBackingField(typeof(ActionSheetArguments), nameof(ActionSheetArguments.Title));
 	static readonly FieldInfo PromptTitleField = GetBackingField(typeof(PromptArguments), nameof(PromptArguments.Title));
 	static readonly FieldInfo PromptMessageField = GetBackingField(typeof(PromptArguments), nameof(PromptArguments.Message));
 	static readonly FieldInfo PromptPlaceholderField = GetBackingField(typeof(PromptArguments), nameof(PromptArguments.Placeholder));
@@ -64,7 +66,7 @@ internal static class ReproSession
 
 	static ScenarioResult RunScenario(string name, bool clearPayloadAfterCreate)
 	{
-		var tracked = new List<TrackedDialog>(CyclesPerDialogKind * 2);
+		var tracked = new List<TrackedDialog>(CyclesPerDialogKind * 3);
 
 		for (var i = 0; i < CyclesPerDialogKind; i++)
 		{
@@ -72,6 +74,7 @@ internal static class ReproSession
 				WriteProgress($"{name}: cycle {i}/{CyclesPerDialogKind}");
 
 			CreateAlertCycle(i, tracked, clearPayloadAfterCreate);
+			CreateActionSheetCycle(i, tracked, clearPayloadAfterCreate);
 			CreatePromptCycle(i, tracked, clearPayloadAfterCreate);
 		}
 
@@ -104,6 +107,40 @@ internal static class ReproSession
 		}
 
 		tracked.Add(TrackedDialog.Create(DialogKind.Alert, retained, arguments, payloads));
+	}
+
+	[MethodImpl(MethodImplOptions.NoInlining)]
+	static void CreateActionSheetCycle(
+		int cycle,
+		List<TrackedDialog> tracked,
+		bool clearPayloadAfterCreate)
+	{
+		var title = clearPayloadAfterCreate
+			? $"Short actions {cycle:D4}"
+			: CreatePayload(DialogKind.ActionSheet, cycle, "title");
+		var buttons = Enumerable.Range(0, ActionSheetItems)
+			.Select(item => clearPayloadAfterCreate
+				? $"Item {cycle:D4}-{item:D2}"
+				: CreatePayload(DialogKind.ActionSheet, cycle, $"item-{item:D2}"))
+			.ToArray();
+		var arguments = new ActionSheetArguments(title, "Cancel", "Delete", buttons);
+		var payloads = clearPayloadAfterCreate
+			? Array.Empty<string>()
+			: new[] { title }.Concat(buttons).ToArray();
+
+		var alert = CreateAlertManagerStyleActionSheet(arguments);
+		var retained = new RetainedAlert(DialogKind.ActionSheet, alert);
+		RetainedNativeAlerts.Add(retained);
+
+		arguments.SetResult(null!);
+
+		if (clearPayloadAfterCreate)
+		{
+			ClearActionSheetArguments(arguments);
+			ClearNativeAlertPayload(alert);
+		}
+
+		tracked.Add(TrackedDialog.Create(DialogKind.ActionSheet, retained, arguments, payloads));
 	}
 
 	[MethodImpl(MethodImplOptions.NoInlining)]
@@ -161,6 +198,29 @@ internal static class ReproSession
 		return alert;
 	}
 
+	static UIAlertController CreateAlertManagerStyleActionSheet(ActionSheetArguments arguments)
+	{
+		var alert = UIAlertController.Create(arguments.Title, null, UIAlertControllerStyle.ActionSheet);
+
+		alert.AddAction(UIAlertAction.Create(arguments.Cancel ?? "", UIAlertActionStyle.Cancel, _ => arguments.SetResult(arguments.Cancel)));
+
+		if (arguments.Destruction != null)
+		{
+			alert.AddAction(UIAlertAction.Create(arguments.Destruction, UIAlertActionStyle.Destructive, _ => arguments.SetResult(arguments.Destruction)));
+		}
+
+		foreach (var label in arguments.Buttons)
+		{
+			if (label == null)
+				continue;
+
+			var blabel = label;
+			alert.AddAction(UIAlertAction.Create(blabel, UIAlertActionStyle.Default, _ => arguments.SetResult(blabel)));
+		}
+
+		return alert;
+	}
+
 	static UIAlertController CreateAlertManagerStylePrompt(PromptArguments arguments)
 	{
 		var alert = UIAlertController.Create(arguments.Title, arguments.Message, UIAlertControllerStyle.Alert);
@@ -204,6 +264,11 @@ internal static class ReproSession
 	{
 		AlertTitleField.SetValue(arguments, string.Empty);
 		AlertMessageField.SetValue(arguments, string.Empty);
+	}
+
+	static void ClearActionSheetArguments(ActionSheetArguments arguments)
+	{
+		ActionSheetTitleField.SetValue(arguments, string.Empty);
 	}
 
 	static void ClearPromptArguments(PromptArguments arguments)
@@ -297,6 +362,7 @@ internal static class ReproSession
 	internal enum DialogKind
 	{
 		Alert,
+		ActionSheet,
 		Prompt
 	}
 
@@ -331,6 +397,7 @@ internal static class ReproSession
 		int AliveNativeAlerts,
 		int RetainedNativeActions,
 		int AlertDialogs,
+		int ActionSheetDialogs,
 		int PromptDialogs,
 		int AliveArguments,
 		int AlivePayloadStrings,
@@ -341,6 +408,7 @@ internal static class ReproSession
 			var aliveNativeAlerts = 0;
 			var retainedNativeActions = 0;
 			var alertDialogs = 0;
+			var actionSheetDialogs = 0;
 			var promptDialogs = 0;
 			var aliveArguments = 0;
 			var alivePayloadStrings = 0;
@@ -355,6 +423,8 @@ internal static class ReproSession
 
 					if (item.Kind == DialogKind.Alert)
 						alertDialogs++;
+					else if (item.Kind == DialogKind.ActionSheet)
+						actionSheetDialogs++;
 					else if (item.Kind == DialogKind.Prompt)
 						promptDialogs++;
 				}
@@ -378,6 +448,7 @@ internal static class ReproSession
 				aliveNativeAlerts,
 				retainedNativeActions,
 				alertDialogs,
+				actionSheetDialogs,
 				promptDialogs,
 				aliveArguments,
 				alivePayloadStrings,
@@ -395,13 +466,13 @@ internal sealed record ReproReport(
 	ReproSession.ScenarioResult Control,
 	ReproSession.ScenarioResult Current)
 {
-	public int ExpectedDialogs => CyclesPerDialogKind * 2;
+	public int ExpectedDialogs => CyclesPerDialogKind * 3;
 
-	public int ExpectedPayloadStrings => CyclesPerDialogKind * (2 + 4);
+	public int ExpectedPayloadStrings => CyclesPerDialogKind * (2 + (1 + ReproSession.ActionSheetItems) + 4);
 
 	public long ExpectedPayloadBytes => (long)ExpectedPayloadStrings * PayloadBytesPerSlot;
 
-	public int ExpectedNativeActions => CyclesPerDialogKind * 4;
+	public int ExpectedNativeActions => CyclesPerDialogKind * (2 + (2 + ReproSession.ActionSheetItems) + 2);
 
 	public bool LeakProved =>
 		Control.AliveNativeAlerts == ExpectedDialogs &&
@@ -420,14 +491,15 @@ internal sealed record ReproReport(
 		return string.Join(Environment.NewLine,
 			"MacCatalystAlertManagerDialogRetentionRepro",
 			$"Cycles per dialog kind: {CyclesPerDialogKind}",
-			$"Payload chars per alert/prompt string slot: {PayloadCharsPerSlot:N0}",
-			$"Payload bytes per alert/prompt string slot: {PayloadBytesPerSlot:N0}",
+			$"Payload chars per alert/action-sheet/prompt string slot: {PayloadCharsPerSlot:N0}",
+			$"Payload bytes per alert/action-sheet/prompt string slot: {PayloadBytesPerSlot:N0}",
+			$"Action sheet generated item count: {ReproSession.ActionSheetItems}",
 			$"Expected retained native alert peers: {ExpectedDialogs}",
 			$"Expected retained native actions: {ExpectedNativeActions}",
 			$"Expected payload strings: {ExpectedPayloadStrings}",
 			$"Expected payload bytes: {ExpectedPayloadBytes:N0}",
-			"Source paths mirrored: AlertManager.AlertRequestHelper PresentAlert and PresentPrompt UIAlertController/UIAlertAction construction.",
-			"Control keeps the native alert/action peers alive but clears payload fields from arguments and native text controls after construction.",
+			"Source paths mirrored: AlertManager.AlertRequestHelper PresentAlert, PresentActionSheet, and PresentPrompt UIAlertController/UIAlertAction construction.",
+			"Control keeps native alert/action peers alive with short action-sheet labels and clears alert/prompt payload fields after construction.",
 			$"Baseline managed heap: {BaselineManagedBytes:N0} bytes",
 			$"Final managed heap: {FinalManagedBytes:N0} bytes",
 			$"Managed heap delta: {heapDeltaMiB:N1} MiB",
@@ -450,6 +522,7 @@ internal sealed record ReproReport(
 			$"  alive native UIAlertController peers: {result.AliveNativeAlerts}/{result.TrackedDialogs}",
 			$"  retained native UIAlertActions: {result.RetainedNativeActions}",
 			$"  alive alert dialogs: {result.AlertDialogs}",
+			$"  alive action-sheet dialogs: {result.ActionSheetDialogs}",
 			$"  alive prompt dialogs: {result.PromptDialogs}",
 			$"  alive AlertArguments/PromptArguments: {result.AliveArguments}/{result.TrackedDialogs}",
 			$"  alive payload strings: {result.AlivePayloadStrings}",
