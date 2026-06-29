@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net$(_MauiDotNetVersion)-android</TargetFrameworks>
+    <OutputType>Exe</OutputType>
+    <SingleProject>true</SingleProject>
+    <ApplicationTitle>AndroidToolbarTitleIconDrawableRetentionRepro</ApplicationTitle>
+    <ApplicationId>com.microsoft.maui.androidtoolbartitleicondrawableretentionrepro</ApplicationId>
+    <ApplicationVersion>1</ApplicationVersion>
+    <IsPackable>false</IsPackable>
+    <NoWarn>$(NoWarn);XC0022;0618</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup Condition=" '$(UseMaui)' != 'true' ">
+    <ProjectReference Include="..\..\..\Core\src\Core.csproj" />
+    <ProjectReference Include="..\..\src\Xaml\Controls.Xaml.csproj" />
+    <ProjectReference Include="..\..\src\Core\Controls.Core.csproj" />
+    <ProjectReference Include="..\..\..\Essentials\src\Essentials.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <MauiIcon Include="..\Controls.Sample.Profiling\Resources\AppIcons\appicon.svg" ForegroundFile="..\Controls.Sample.Profiling\Resources\AppIcons\appicon_foreground.svg" Color="#1E88E5" />
+    <MauiSplashScreen Include="..\Controls.Sample.Profiling\Resources\AppIcons\appicon_foreground.svg" Color="#1E88E5" BaseSize="128,128" />
+  </ItemGroup>
+
+  <Import Project="$(MauiSrcDirectory)Maui.InTree.props" Condition=" '$(UseMaui)' != 'true' " />
+
+</Project>
