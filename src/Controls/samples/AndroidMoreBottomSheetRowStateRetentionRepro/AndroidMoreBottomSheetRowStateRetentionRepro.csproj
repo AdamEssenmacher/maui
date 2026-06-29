@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net$(_MauiDotNetVersion)-android</TargetFrameworks>
+    <OutputType>Exe</OutputType>
+    <SingleProject>true</SingleProject>
+    <ApplicationTitle>AndroidMoreBottomSheetRowStateRetentionRepro</ApplicationTitle>
+    <ApplicationId>com.microsoft.maui.androidmorebottomsheetrowstateretentionrepro</ApplicationId>
+    <ApplicationVersion>1</ApplicationVersion>
+    <IsPackable>false</IsPackable>
+    <NoWarn>$(NoWarn);XC0022;0618</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup Condition=" '$(UseMaui)' != 'true' ">
+    <ProjectReference Include="..\..\..\Core\src\Core.csproj" />
+    <ProjectReference Include="..\..\src\Xaml\Controls.Xaml.csproj" />
+    <ProjectReference Include="..\..\src\Core\Controls.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <MauiIcon Include="..\Controls.Sample.Profiling\Resources\AppIcons\appicon.svg" ForegroundFile="..\Controls.Sample.Profiling\Resources\AppIcons\appicon_foreground.svg" Color="#455A64" />
+    <MauiSplashScreen Include="..\Controls.Sample.Profiling\Resources\AppIcons\appicon_foreground.svg" Color="#455A64" BaseSize="128,128" />
+  </ItemGroup>
+
+  <Import Project="$(MauiSrcDirectory)Maui.InTree.props" Condition=" '$(UseMaui)' != 'true' " />
+
+</Project>
