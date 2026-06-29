@@ -106,6 +106,7 @@ internal static class ReproSession
 			Text = $"Workflow {cycle:0000}"
 		};
 		menuBar.Add(menuBarItem);
+		menuBarItem.Parent = menuBar;
 
 		var retainedMenus = new List<RetainedNativeMenu>(SubmenusPerCycle);
 		var subitems = new MenuFlyoutSubItem[SubmenusPerCycle];
