@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net$(_MauiDotNetVersion)-ios</TargetFrameworks>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>IosCompatActionSheetObserverRetentionRepro</RootNamespace>
+    <SingleProject>true</SingleProject>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+    <NoWarn>$(NoWarn);XC0022</NoWarn>
+    <RuntimeIdentifier Condition="$(TargetFramework.Contains('-ios'))">iossimulator-arm64</RuntimeIdentifier>
+    <ApplicationTitle>IosCompatActionSheetObserverRetentionRepro</ApplicationTitle>
+    <ApplicationId>com.microsoft.maui.ioscompatactionsheetobserverretentionrepro</ApplicationId>
+    <ApplicationDisplayVersion>1.0</ApplicationDisplayVersion>
+    <ApplicationVersion>1</ApplicationVersion>
+    <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'ios'">15.0</SupportedOSPlatformVersion>
+  </PropertyGroup>
+
+  <ItemGroup Condition=" '$(UseMaui)' != 'true' ">
+    <ProjectReference Include="..\..\..\Core\src\Core.csproj" />
+    <ProjectReference Include="..\..\..\Controls\src\Xaml\Controls.Xaml.csproj" />
+    <ProjectReference Include="..\..\..\Controls\src\Core\Controls.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <MauiIcon Include="..\Controls.Sample.Profiling\Resources\AppIcons\appicon.svg" ForegroundFile="..\Controls.Sample.Profiling\Resources\AppIcons\appicon_foreground.svg" Color="#314457" />
+    <MauiSplashScreen Include="..\Controls.Sample.Profiling\Resources\AppIcons\appicon_foreground.svg" Color="#314457" BaseSize="128,128" />
+  </ItemGroup>
+
+  <Import Project="$(MauiSrcDirectory)Maui.InTree.props" Condition=" '$(UseMaui)' != 'true' " />
+
+</Project>
