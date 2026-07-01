@@ -1,0 +1,72 @@
+#nullable enable
+
+using System;
+using System.IO;
+using Microsoft.Maui;
+using Microsoft.Maui.Controls;
+using Microsoft.Maui.Storage;
+
+namespace AndroidNativeViewWrapperLayoutChangeRetentionRepro;
+
+public class MainPage : ContentPage
+{
+	readonly Label _status;
+	bool _started;
+
+	public MainPage()
+	{
+		Title = "Android NativeViewWrapper LayoutChange Retention";
+		_status = new Label
+		{
+			Text = "Waiting to run...",
+			FontFamily = "monospace",
+			FontSize = 13,
+			LineBreakMode = LineBreakMode.WordWrap
+		};
+
+		Content = new ScrollView
+		{
+			Content = new VerticalStackLayout
+			{
+				Padding = 16,
+				Spacing = 12,
+				Children =
+				{
+					new Label
+					{
+						Text = "Android NativeViewWrapper LayoutChange Retention",
+						FontAttributes = FontAttributes.Bold,
+						FontSize = 18
+					},
+					_status
+				}
+			}
+		};
+	}
+
+	protected override async void OnAppearing()
+	{
+		base.OnAppearing();
+
+		if (_started)
+			return;
+
+		_started = true;
+		_status.Text = "Running repro...";
+
+		string report;
+		try
+		{
+			report = await ReproSession.RunAsync(this);
+		}
+		catch (Exception ex)
+		{
+			report = ex.ToString();
+		}
+
+		var path = Path.Combine(FileSystem.AppDataDirectory, "autorun-results.txt");
+		Directory.CreateDirectory(FileSystem.AppDataDirectory);
+		await File.WriteAllTextAsync(path, report);
+		_status.Text = report;
+	}
+}
