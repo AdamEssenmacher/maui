@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net$(_MauiDotNetVersion)-android</TargetFrameworks>
+    <OutputType>Exe</OutputType>
+    <SingleProject>true</SingleProject>
+    <ApplicationTitle>AndroidScopedFragmentDetailContextRetentionRepro</ApplicationTitle>
+    <ApplicationId>com.microsoft.maui.androidscopedfragmentdetailcontextretentionrepro</ApplicationId>
+    <ApplicationVersion>1</ApplicationVersion>
+    <IsPackable>false</IsPackable>
+    <Nullable>enable</Nullable>
+    <NoWarn>$(NoWarn);XC0022;0618;CA1416</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup Condition=" '$(UseMaui)' != 'true' ">
+    <ProjectReference Include="..\..\..\Core\src\Core.csproj" />
+    <ProjectReference Include="..\..\src\Xaml\Controls.Xaml.csproj" />
+    <ProjectReference Include="..\..\src\Core\Controls.Core.csproj" />
+    <ProjectReference Include="..\..\..\Essentials\src\Essentials.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <MauiIcon Include="..\Controls.Sample.Profiling\Resources\AppIcons\appicon.svg" ForegroundFile="..\Controls.Sample.Profiling\Resources\AppIcons\appicon_foreground.svg" Color="#37474F" />
+    <MauiSplashScreen Include="..\Controls.Sample.Profiling\Resources\AppIcons\appicon_foreground.svg" Color="#37474F" BaseSize="128,128" />
+  </ItemGroup>
+
+  <Import Project="$(MauiSrcDirectory)Maui.InTree.props" Condition=" '$(UseMaui)' != 'true' " />
+
+</Project>
