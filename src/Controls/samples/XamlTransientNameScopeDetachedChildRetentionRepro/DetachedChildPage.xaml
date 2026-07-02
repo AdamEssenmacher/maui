@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage
+    x:Class="XamlTransientNameScopeDetachedChildRetentionRepro.DetachedChildPage"
+    x:Name="RetainedPageRoot"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml">
+    <Grid x:Name="RootGrid" Padding="4">
+        <Label x:Name="DetachedChild" Text="Detached child retained by a longer-lived owner" />
+    </Grid>
+</ContentPage>
