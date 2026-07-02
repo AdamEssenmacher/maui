@@ -1,0 +1,12 @@
+using Foundation;
+
+namespace TriggerConditionPropertyContextRetentionRepro;
+
+[Register("AppDelegate")]
+public class AppDelegate : MauiUIApplicationDelegate
+{
+	protected override MauiApp CreateMauiApp()
+	{
+		return MauiProgram.CreateMauiApp();
+	}
+}
