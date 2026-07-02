@@ -75,6 +75,8 @@ static class ReproSession
 	public const string ResultsPath = "/tmp/trigger-condition-propertycontext-retention-results.txt";
 
 	public const int TriggerCount = 160;
+	const int TriggerKindCount = 2;
+	const int TriggersPerKind = TriggerCount / TriggerKindCount;
 	const int PayloadBytes = 1024 * 1024;
 
 	static readonly PropertyInfo s_conditionProperty =
@@ -84,6 +86,10 @@ static class ReproSession
 	static readonly FieldInfo s_statePropertyField =
 		typeof(PropertyCondition).GetField("_stateProperty", BindingFlags.Instance | BindingFlags.NonPublic)
 		?? throw new MissingFieldException(typeof(PropertyCondition).FullName, "_stateProperty");
+
+	static readonly FieldInfo s_boundPropertyField =
+		typeof(BindingCondition).GetField("_boundProperty", BindingFlags.Instance | BindingFlags.NonPublic)
+		?? throw new MissingFieldException(typeof(BindingCondition).FullName, "_boundProperty");
 
 	static readonly FieldInfo s_propertiesField =
 		typeof(BindableObject).GetField("_properties", BindingFlags.Instance | BindingFlags.NonPublic)
@@ -108,7 +114,7 @@ static class ReproSession
 		var heapBefore = GC.GetTotalMemory(forceFullCollection: true);
 		var retainedTargets = new List<Label>(TriggerCount);
 		var targetReferences = new List<WeakReference<Label>>(TriggerCount);
-		var triggerReferences = new List<WeakReference<Trigger>>(TriggerCount);
+		var triggerReferences = new List<WeakReference<TriggerBase>>(TriggerCount);
 		var payloadReferences = new List<WeakReference<TriggerPayload>>(TriggerCount);
 		var payloadBufferReferences = new List<WeakReference<byte[]>>(TriggerCount);
 
@@ -146,13 +152,16 @@ static class ReproSession
 		int triggerIndex,
 		List<Label> retainedTargets,
 		List<WeakReference<Label>> targetReferences,
-		List<WeakReference<Trigger>> triggerReferences,
+		List<WeakReference<TriggerBase>> triggerReferences,
 		List<WeakReference<TriggerPayload>> payloadReferences,
 		List<WeakReference<byte[]>> payloadBufferReferences)
 	{
+		var triggerKind = triggerIndex < TriggersPerKind
+			? TriggerKind.PropertyTrigger
+			: TriggerKind.DataTrigger;
 		var payload = new TriggerPayload(
-			$"trigger-{triggerIndex:000}",
-			$"Dynamic trigger rule for dashboard row {triggerIndex:000}; includes validation state, feature flags, and tenant-specific style decisions.",
+			$"{triggerKind}-{triggerIndex:000}",
+			$"Dynamic {triggerKind} rule for dashboard row {triggerIndex:000}; includes validation state, feature flags, and tenant-specific style decisions.",
 			new byte[PayloadBytes]);
 		payload.Buffer[0] = (byte)triggerIndex;
 		payload.Buffer[^1] = (byte)(255 - triggerIndex);
@@ -163,24 +172,18 @@ static class ReproSession
 			IsVisible = true
 		};
 
-		var trigger = new Trigger(typeof(Label))
-		{
-			Property = VisualElement.IsVisibleProperty,
-			Value = true,
-			BindingContext = payload
-		};
-
-		var stateProperty = GetStateProperty(trigger);
+		var trigger = CreateTrigger(triggerKind, target, payload);
+		var conditionProperty = GetConditionProperty(trigger);
 
 		target.Triggers.Add(trigger);
 		target.Triggers.Remove(trigger);
 
 		if (removeConditionPropertyContext)
-			RemoveBindablePropertyContext(target, stateProperty);
+			RemoveBindablePropertyContext(target, conditionProperty);
 
 		retainedTargets.Add(target);
 		targetReferences.Add(new WeakReference<Label>(target));
-		triggerReferences.Add(new WeakReference<Trigger>(trigger));
+		triggerReferences.Add(new WeakReference<TriggerBase>(trigger));
 		payloadReferences.Add(new WeakReference<TriggerPayload>(payload));
 		payloadBufferReferences.Add(new WeakReference<byte[]>(payload.Buffer));
 
@@ -189,13 +192,50 @@ static class ReproSession
 		payload = null!;
 	}
 
-	static BindableProperty GetStateProperty(Trigger trigger)
+	static TriggerBase CreateTrigger(TriggerKind triggerKind, Label target, TriggerPayload payload)
+	{
+		return triggerKind switch
+		{
+			TriggerKind.PropertyTrigger => new Trigger(typeof(Label))
+			{
+				Property = VisualElement.IsVisibleProperty,
+				Value = true,
+				BindingContext = payload
+			},
+			TriggerKind.DataTrigger => new DataTrigger(typeof(Label))
+			{
+				Binding = new Binding(nameof(Label.IsVisible)) { Source = target },
+				Value = true,
+				BindingContext = payload
+			},
+			_ => throw new ArgumentOutOfRangeException(nameof(triggerKind), triggerKind, null)
+		};
+	}
+
+	static BindableProperty GetConditionProperty(TriggerBase trigger)
 	{
 		var condition = s_conditionProperty.GetValue(trigger)
-			?? throw new InvalidOperationException("Trigger did not expose its internal PropertyCondition.");
+			?? throw new InvalidOperationException("Trigger did not expose its internal Condition.");
 
-		return (BindableProperty?)s_statePropertyField.GetValue(condition)
-			?? throw new InvalidOperationException("PropertyCondition did not expose its state property.");
+		if (condition is PropertyCondition)
+		{
+			return (BindableProperty?)s_statePropertyField.GetValue(condition)
+				?? throw new InvalidOperationException("PropertyCondition did not expose its state property.");
+		}
+
+		if (condition is BindingCondition)
+		{
+			return (BindableProperty?)s_boundPropertyField.GetValue(condition)
+				?? throw new InvalidOperationException("BindingCondition did not expose its bound property.");
+		}
+
+		throw new InvalidOperationException($"Unsupported condition type: {condition.GetType().FullName}");
+	}
+
+	enum TriggerKind
+	{
+		PropertyTrigger,
+		DataTrigger
 	}
 
 	static void RemoveBindablePropertyContext(BindableObject bindable, BindableProperty property)
@@ -290,13 +330,14 @@ readonly record struct ReproReport(ScenarioResult Control, ScenarioResult Curren
 		builder.AppendLine(LeakProved ? "RESULT: PROVEN" : "RESULT: NOT PROVEN");
 		builder.AppendLine("TriggerConditionPropertyContextRetentionRepro");
 		builder.AppendLine($"Live target labels retained in both scenarios: {Current.RetainedTargets}");
-		builder.AppendLine("Payload per removed Trigger: 1.0 MiB");
+		builder.AppendLine("Removed triggers: 80 PropertyCondition Trigger instances and 80 BindingCondition DataTrigger instances");
+		builder.AppendLine("Payload per removed trigger: 1.0 MiB");
 		builder.AppendLine();
-		AppendScenario(builder, "control: remove the PropertyCondition attached-property context after trigger removal", Control);
+		AppendScenario(builder, "control: remove stale condition attached-property contexts after trigger removal", Control);
 		builder.AppendLine();
-		AppendScenario(builder, "current: remove Trigger from a retained target label", Current);
+		AppendScenario(builder, "current: remove Trigger/DataTrigger from retained target labels", Current);
 		builder.AppendLine();
-		builder.AppendLine("Leak path: retained target Label -> stale PropertyCondition._stateProperty BindablePropertyContext -> BindableProperty propertyChanged delegate -> PropertyCondition -> Condition.ConditionChanged -> removed Trigger -> BindingContext/Payload buffer.");
+		builder.AppendLine("Leak path: retained target Label -> stale condition-owned BindablePropertyContext -> BindableProperty propertyChanged delegate -> PropertyCondition/BindingCondition -> Condition.ConditionChanged -> removed Trigger/DataTrigger -> BindingContext/Payload buffer.");
 		builder.AppendLine("The target labels remain alive in both scenarios; the signal is whether removed Trigger payloads collect after full GC.");
 		builder.AppendLine($"dotnet-version: {Environment.Version}");
 		return builder.ToString();
