@@ -1,6 +1,6 @@
 # Compiled XAML DataTemplate Root Retention Repro
 
-This sample proves a managed retention path in compiled XAML-created `DataTemplate` instances.
+This sample proves a managed retention path in compiled XAML-created `DataTemplate` instances. The project forces XamlC with `[assembly: XamlCompilation(XamlCompilationOptions.Compile)]` so it exercises the build-time template factory path.
 
 `XamlC.SetPropertiesVisitor.SetDataTemplate(...)` creates a generated template-factory target that stores the XAML root object in a `root` field. If app code extracts a page-local compiled-XAML `DataTemplate` and keeps it in a registry, plugin cache, design surface, or deferred view factory, the escaped template can keep the discarded XAML root page alive.
 
