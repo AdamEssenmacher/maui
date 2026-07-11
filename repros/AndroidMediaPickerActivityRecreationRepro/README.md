@@ -2,18 +2,25 @@
 
 This standalone .NET MAUI app demonstrates an Android regression introduced by [dotnet/maui#35944](https://github.com/dotnet/maui/pull/35944): `MediaPicker.PickPhotosAsync()` can remain incomplete when its launching `ComponentActivity` is recreated while the system photo picker is open.
 
-The app opens a native child `AppCompatActivity` that calls `Platform.Init` and intentionally does not handle orientation configuration changes. It retains the exact picker `Task` for diagnostics and displays its completion state after Android recreates the activity.
+The MAUI launcher opens a native child `AppCompatActivity` and immediately calls `Finish()`. The child calls `Platform.Init`, intentionally does not handle orientation configuration changes, retains the exact picker `Task`, and displays its completion state after Android recreates it.
+
+Finishing the launcher is essential to this comparison. Before PR #35944, the global registration guard allows the child to register when the previous launcher-owning activity is finishing. The picker therefore completes on the PR's parent commit, including after child activity recreation. Leaving the MAUI launcher alive would exercise the pre-existing child-registration bug fixed by the PR and would not be a valid regression test.
 
 ## Verified Environment
 
-- `dotnet/inflight/current`: `f594a31d59e9c444e0e7fc040a69a4660926cf59`
-- MediaPicker change: `f9f3c80e34928c0329ab4e959e0d50e8a3fcdfc6`
+- PR parent: `cee52c395f823e078a5318e6b8094c9c7d5649d4`
+- PR #35944: `f9f3c80e34928c0329ab4e959e0d50e8a3fcdfc6`
+- Tested `dotnet/inflight/current`: `f594a31d59e9c444e0e7fc040a69a4660926cf59`
 - Verified: July 11, 2026
 - Emulator: Pixel 9 Pro AVD with the `android-36.1` system image
 - Android: 16 / API 36, build `BE4B.251210.005`
 - Build fingerprint: `google/sdk_gphone64_arm64/emu64a:16/BE4B.251210.005/14574095:user/release-keys`
 
-The control path completed with zero results and `IsCompleted=True`. The rotation path reproduced on two out of two fresh app launches: activity 1 was destroyed with `IsChangingConfigurations=True`, activity 2 was created, and the original picker task remained `WaitingForActivation` after the picker returned.
+The identical repro source, embedded-assemblies build, emulator, and rotation sequence produced these results:
+
+- PR parent: activity 1 was recreated as activity 2, then request 1 completed with zero results and `IsCompleted=True`.
+- PR #35944: activity 1 was recreated as activity 2, but request 1 remained `WaitingForActivation` and `IsCompleted=False` after the picker returned.
+- PR #35944 without rotation: request 1 completed with zero results and `IsCompleted=True`.
 
 ## Build
 
@@ -49,7 +56,7 @@ adb logcat -s MediaPickerRecreationRepro:I
 
 ## Control Path
 
-1. Launch the app and tap **Open child activity**.
+1. Launch the app and tap **Open child activity**. The launcher closes after opening it.
 2. Confirm the child displays `Current activity instance: 1`.
 3. Tap **Pick photos**.
 4. Press Back without rotating the device.
@@ -65,7 +72,7 @@ PASS: request 1 completed with 0 result(s)
 
 ## Regression Path
 
-1. Launch or restart the app in portrait and tap **Open child activity**.
+1. Launch or restart the app in portrait and tap **Open child activity**. The launcher closes after opening it.
 2. Confirm the child displays `Current activity instance: 1`.
 3. Tap **Pick photos**.
 4. While the Android photo picker is open, rotate the device.
@@ -84,7 +91,21 @@ adb shell input keyevent KEYCODE_BACK
 adb shell cmd window user-rotation free
 ```
 
-Representative output:
+Representative output from the PR parent (`cee52c395f`):
+
+```text
+Activity 1: OnCreate
+Activity 1: OnResume
+Activity 1: request 1 started
+Request 1: task attached (WaitingForActivation)
+Activity 1: OnDestroy changingConfigurations=True finishing=False
+Activity 2: OnCreate
+Activity 2: OnResume
+PASS: request 1 completed with 0 result(s)
+Activity 2: OnResume
+```
+
+Representative output from PR #35944 (`f9f3c80e34`):
 
 ```text
 Activity 1: OnCreate
@@ -98,11 +119,11 @@ Activity 2: OnResume
 FAIL: picker returned through activity 2, but request 1 from activity 1 is still pending
 ```
 
-There is no completion or cancellation entry for request 1. The two-second diagnostic check only observes the retained task; it does not cancel or complete it.
+Only the PR build lacks a completion or cancellation entry for request 1. The two-second diagnostic check only observes the retained task; it does not cancel or complete it.
 
 ## Expected Behavior
 
-Android's Activity Result API delivers the in-flight picker result through the callback registered by the recreated activity. That callback should resolve the task created by the original activity, so cancelling returns an empty result list just as it does in the control path.
+Android's Activity Result API delivers the in-flight picker result through the callback registered by the recreated activity. That callback should resolve the task created by the original activity, so cancelling returns an empty result list as it does on the PR parent and in the no-rotation control.
 
 ## Actual Behavior
 

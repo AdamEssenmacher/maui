@@ -23,7 +23,7 @@ public sealed class MainPage : ContentPage
 
 		var summary = new Label
 		{
-			Text = "This page opens a separate Android activity. The child intentionally allows rotation to recreate it while PickPhotosAsync is pending.",
+			Text = "This launcher closes after opening the picker activity. The picker activity intentionally allows rotation to recreate it while PickPhotosAsync is pending.",
 			FontSize = 16,
 			TextColor = Color.FromArgb("#374151")
 		};
@@ -81,5 +81,6 @@ public sealed class MainPage : ContentPage
 		_launchStatusLabel.Text = "Opening child activity...";
 		_launchStatusLabel.TextColor = Color.FromArgb("#4B5563");
 		activity.StartActivity(new Intent(activity, typeof(MediaPickerActivity)));
+		activity.Finish();
 	}
 }
