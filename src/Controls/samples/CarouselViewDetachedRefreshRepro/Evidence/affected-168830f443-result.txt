@@ -1,0 +1,21 @@
+timestamp_utc=2026-07-15T20:45:37.6230230+00:00
+build_label=affected-168830f443-publication
+result=REGRESSION_REPRODUCED
+initial_state_ready=True
+native_carousel_detached=True
+expected_product=B1
+carousel_position=3
+indicator_position=3
+carousel_current_item=B3
+viewmodel_selected_product=B3
+visible_products=B3
+error=none
+events:
+  16:45:32.497 Initial catalog A requested at Position 3 / CurrentItem A3
+  16:45:32.620 Initial state synchronized: True (Position=3, CurrentItem=A3)
+  16:45:32.620 Navigating to the normal filter page
+  16:45:34.274 Native carousel detached: True
+  16:45:34.276 Filter applied off-screen: ItemsSource=B, selected=B1, Position left at 3
+  16:45:37.579 Returned: Position=3, Indicator=3, Carousel.CurrentItem=B3
+  16:45:37.604 ViewModel.SelectedProduct=B3; visible=[B3]
+  16:45:37.605 Outcome=REGRESSION_REPRODUCED

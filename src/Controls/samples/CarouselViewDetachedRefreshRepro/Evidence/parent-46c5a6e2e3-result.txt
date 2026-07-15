@@ -1,0 +1,21 @@
+timestamp_utc=2026-07-15T20:49:15.0919110+00:00
+build_label=parent-46c5a6e2e3-publication
+result=BASELINE_PASS
+initial_state_ready=True
+native_carousel_detached=True
+expected_product=B1
+carousel_position=1
+indicator_position=1
+carousel_current_item=B1
+viewmodel_selected_product=B1
+visible_products=B1
+error=none
+events:
+  16:49:09.682 Initial catalog A requested at Position 3 / CurrentItem A3
+  16:49:09.799 Initial state synchronized: True (Position=3, CurrentItem=A3)
+  16:49:09.799 Navigating to the normal filter page
+  16:49:11.610 Native carousel detached: True
+  16:49:11.617 Filter applied off-screen: ItemsSource=B, selected=B1, Position left at 3
+  16:49:15.039 Returned: Position=1, Indicator=1, Carousel.CurrentItem=B1
+  16:49:15.051 ViewModel.SelectedProduct=B1; visible=[B1]
+  16:49:15.053 Outcome=BASELINE_PASS
